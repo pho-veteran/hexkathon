@@ -1,26 +1,45 @@
-import React, { useState } from 'react';
-import Workspace from './components/Workspace';
-import BattleCard from './components/BattleCard';
-import './index.css'; // Assuming Tailwind is configured here
+import { useState } from 'react'
+import BattleCard from './components/BattleCard'
+import AuthGate from './components/AuthGate'
+import Workspace from './components/Workspace'
+import { useAuth } from './context/AuthContext'
+import './index.css'
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState('workspace'); // 'workspace' | 'battle'
+  const { isAuthenticated, loading } = useAuth()
+  const [currentScreen, setCurrentScreen] = useState('workspace')
+  const [activeQuizId, setActiveQuizId] = useState(null)
 
-  const handleStartBattle = () => {
-    setCurrentScreen('battle');
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500 text-lg">
+        Loading...
+      </div>
+    )
+  }
 
-  const handleEndBattle = () => {
-    setCurrentScreen('workspace');
-  };
+  if (!isAuthenticated) {
+    return <AuthGate />
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       {currentScreen === 'workspace' ? (
-        <Workspace onStartBattle={handleStartBattle} />
+        <Workspace
+          onStartBattle={(quizId) => {
+            setActiveQuizId(quizId)
+            setCurrentScreen('battle')
+          }}
+        />
       ) : (
-        <BattleCard onEndBattle={handleEndBattle} />
+        <BattleCard
+          quizId={activeQuizId}
+          onEndBattle={() => {
+            setCurrentScreen('workspace')
+            setActiveQuizId(null)
+          }}
+        />
       )}
     </div>
-  );
+  )
 }

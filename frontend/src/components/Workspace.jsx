@@ -1,227 +1,186 @@
-import React, { useState, useRef } from 'react';
-import Flashcard from './Flashcard';
-import { Send, Zap, Swords, UploadCloud, FileText, Settings, X } from 'lucide-react';
+import { useMemo, useState } from 'react'
+import { LoaderCircle, Send, Sparkles } from 'lucide-react'
+import CitationModal from './CitationModal'
+import DocumentLibrary from './DocumentLibrary'
+import ExamListView from './ExamListView'
+import FlashcardList from './FlashcardList'
+import { useAuth } from '../context/AuthContext'
+import { useChat } from '../hooks/useChat'
+import { useFlashcards } from '../hooks/useFlashcards'
+import { useQuizzes } from '../hooks/useQuizzes'
 
-export default function Workspace({ onStartBattle }) {
-  const [showFlashcards, setShowFlashcards] = useState(false);
-  const [messages, setMessages] = useState([
-    { role: 'bot', text: 'Chào bạn! Mình là AI Study Buddy. Bạn có thể tải bài giảng lên để học hoặc bắt đầu trò chơi Battle nhé!' }
-  ]);
-  const [inputVal, setInputVal] = useState('');
-  
-  // File management
-  const [files, setFiles] = useState([]);
-  const fileInputRef = useRef(null);
-
-  // Flashcard setup
-  const [selectedFile, setSelectedFile] = useState('');
-  const [cardCount, setCardCount] = useState('10');
-
-  const handleSend = () => {
-    const text = inputVal.trim();
-    if (!text) return;
-    
-    setInputVal('');
-    setMessages(prev => [...prev, { role: 'user', text }]);
-    
-    // Dummy response
-    setTimeout(() => {
-      setMessages(prev => [...prev, { role: 'bot', text: 'Đây là câu trả lời mẫu từ AI...' }]);
-    }, 1000);
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-      handleSend();
-    }
-  };
-
-  const handleFileUpload = (e) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files).map(f => f.name);
-      setFiles(prev => [...prev, ...newFiles]);
-      if (!selectedFile) setSelectedFile(newFiles[0]); // Auto-select first uploaded file
-    }
-  };
-
-  const handleGenerate = () => {
-    if (files.length === 0) {
-      alert("Vui lòng tải tệp lên trước khi tạo Flashcard!");
-      return;
-    }
-    setShowFlashcards(true);
-  };
+function CitationChips({ citations, onOpen }) {
+  if (!citations?.length) {
+    return null
+  }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-white">
-      {/* 
-        Chatbot Area 
-        Left Side: 70% mặc định, 40% khi showFlashcards
-      */}
-      <div 
-        className={`flex flex-col border-r border-slate-200 transition-all duration-300 ${
-          showFlashcards ? 'w-[40%]' : 'w-[70%]'
-        }`}
-      >
-        <div className="p-4 border-b border-slate-100 bg-slate-50 font-bold text-lg text-indigo-600 flex items-center gap-2">
-          <Zap className="w-5 h-5" /> Workspace
-        </div>
-        
-        {/* Chat History */}
-        <div className="flex-1 p-4 overflow-y-auto bg-slate-50/50 flex flex-col gap-4">
-          {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div 
-                className={`max-w-[80%] p-3 rounded-2xl whitespace-pre-wrap ${
-                  msg.role === 'user' 
-                    ? 'bg-indigo-500 text-white rounded-tr-none' 
-                    : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none shadow-sm'
-                }`}
-              >
-                {msg.text}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Input Area */}
-        <div className="p-4 border-t border-slate-200 bg-white">
-          <div className="flex items-center gap-2 bg-slate-100 p-2 rounded-full border border-slate-200">
-            <input 
-              type="text" 
-              placeholder="Hỏi AI về bài giảng..." 
-              value={inputVal}
-              onChange={e => setInputVal(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="flex-1 bg-transparent px-3 outline-none text-slate-700"
-            />
-            <button 
-              onClick={handleSend}
-              className="bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-full transition-colors focus:outline-none"
-            >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 
-        Right Content Area (Controls + Flashcards)
-        Right Side: 30% mặc định, 60% khi showFlashcards
-      */}
-      <div 
-        className={`flex flex-col bg-slate-50 transition-all duration-300 ${
-          showFlashcards ? 'w-[60%]' : 'w-[30%]'
-        }`}
-      >
-        {showFlashcards ? (
-          <div className="flex flex-col flex-1">
-            <div className="p-4 border-b border-slate-200 bg-white flex justify-between items-center">
-              <h3 className="font-bold text-slate-700">Bộ Flashcard ({cardCount === 'full' ? 'Tất cả' : cardCount} thẻ)</h3>
-              <button 
-                onClick={() => setShowFlashcards(false)}
-                className="text-slate-400 hover:text-red-500 transition-colors focus:outline-none"
-                title="Đóng Flashcards"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="flex-1 p-6 overflow-y-auto flex items-center justify-center">
-              <Flashcard />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col flex-1 p-6 gap-8 overflow-y-auto">
-            {/* Header Controls */}
-            <button 
-              onClick={onStartBattle}
-              className="w-full py-4 px-4 bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white font-bold rounded-xl shadow-md transition-transform hover:scale-[1.02] flex items-center justify-center gap-2 focus:outline-none text-lg"
-            >
-              <Swords className="w-6 h-6" /> Start Battle
-            </button>
-
-            {/* File Management Section */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-              <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-indigo-500" /> Tài liệu học tập
-              </h3>
-              
-              <input 
-                type="file" 
-                multiple 
-                ref={fileInputRef} 
-                onChange={handleFileUpload} 
-                className="hidden" 
-              />
-              
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-3 border-2 border-dashed border-slate-300 hover:border-indigo-400 hover:bg-indigo-50 text-slate-600 font-medium rounded-lg transition-colors flex items-center justify-center gap-2 focus:outline-none mb-4"
-              >
-                <UploadCloud className="w-5 h-5" /> Tải tài liệu lên (PDF, TXT)
-              </button>
-
-              {files.length > 0 ? (
-                <ul className="space-y-2 max-h-40 overflow-y-auto pr-2">
-                  {files.map((f, i) => (
-                    <li key={i} className="flex items-center gap-2 text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
-                      <FileText className="w-4 h-4 text-slate-400 shrink-0" />
-                      <span className="truncate">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-slate-400 text-center italic">Chưa có tài liệu nào.</p>
-              )}
-            </div>
-
-            {/* Flashcard Setup Section */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm">
-              <h3 className="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2">
-                <Settings className="w-5 h-5 text-indigo-500" /> Cấu hình Flashcard
-              </h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Nguồn tài liệu:</label>
-                  <select 
-                    value={selectedFile}
-                    onChange={(e) => setSelectedFile(e.target.value)}
-                    disabled={files.length === 0}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                  >
-                    {files.length === 0 && <option value="">--- Trống ---</option>}
-                    {files.map((f, i) => (
-                      <option key={i} value={f}>{f}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Số lượng thẻ:</label>
-                  <select 
-                    value={cardCount}
-                    onChange={(e) => setCardCount(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="10">10 thẻ</option>
-                    <option value="20">20 thẻ</option>
-                    <option value="full">Full (Toàn bộ)</option>
-                  </select>
-                </div>
-
-                <button 
-                  onClick={handleGenerate}
-                  className="w-full py-3 mt-2 bg-indigo-100 hover:bg-indigo-600 text-indigo-700 hover:text-white font-bold rounded-lg transition-colors focus:outline-none"
-                >
-                  Tạo Flashcards
-                </button>
-              </div>
-            </div>
-
-          </div>
-        )}
-      </div>
+    <div className="mt-2 flex flex-wrap gap-2">
+      {citations.map((citation, index) => (
+        <button
+          key={`${citation.filename || 'citation'}-${index}`}
+          onClick={() => onOpen(citation)}
+          className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+        >
+          {citation.filename || `Citation ${index + 1}`}
+        </button>
+      ))}
     </div>
-  );
+  )
+}
+
+export default function Workspace({ onStartBattle }) {
+  const { user, logout } = useAuth()
+  const { messages, loading: chatLoading, sendMessage } = useChat()
+  const { flashcardSets, loading: flashcardsLoading, generateFlashcards } = useFlashcards()
+  const { quizzes, loading: quizzesLoading, generateQuiz } = useQuizzes()
+
+  const [selectedDocIds, setSelectedDocIds] = useState([])
+  const [inputValue, setInputValue] = useState('')
+  const [citation, setCitation] = useState(null)
+  const [actionError, setActionError] = useState(null)
+
+  const flattenedMessages = useMemo(() => messages || [], [messages])
+
+  const handleSend = async () => {
+    const question = inputValue.trim()
+    if (!question) {
+      return
+    }
+
+    setActionError(null)
+    setInputValue('')
+    try {
+      await sendMessage(question, selectedDocIds)
+    } catch (error) {
+      setActionError(error.message)
+      setInputValue(question)
+    }
+  }
+
+  const handleGenerateFlashcards = async () => {
+    if (selectedDocIds.length === 0) {
+      setActionError('Select at least one document first.')
+      return
+    }
+
+    setActionError(null)
+    try {
+      await generateFlashcards(selectedDocIds, 10)
+    } catch (error) {
+      setActionError(error.message)
+    }
+  }
+
+  const handleGenerateQuiz = async () => {
+    if (selectedDocIds.length === 0) {
+      setActionError('Select at least one document first.')
+      return
+    }
+
+    setActionError(null)
+    try {
+      await generateQuiz(selectedDocIds)
+    } catch (error) {
+      setActionError(error.message)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
+          <div>
+            <h1 className="text-xl font-black text-slate-900">Study Buddy Battle Quiz</h1>
+            <p className="text-sm text-slate-500">Signed in as {user?.email || user?.username || user?.sub}</p>
+          </div>
+          <button onClick={logout} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
+            Sign out
+          </button>
+        </div>
+      </div>
+
+      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(360px,1fr)]">
+        <section className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-5 py-4">
+            <h2 className="text-lg font-bold text-slate-900">Grounded Chat</h2>
+            <p className="text-sm text-slate-500">Ask questions against selected documents.</p>
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
+            {flattenedMessages.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm text-slate-400">
+                No messages yet.
+              </div>
+            ) : null}
+
+            {flattenedMessages.map((message, index) => (
+              <div key={`${message.messageId || message.createdAt || index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${message.role === 'user' ? 'rounded-tr-none bg-indigo-600 text-white' : 'rounded-tl-none border border-slate-200 bg-slate-50 text-slate-800'}`}>
+                  <p className="whitespace-pre-wrap leading-relaxed">{message.content || message.text}</p>
+                  <CitationChips citations={message.citations} onOpen={setCitation} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t border-slate-200 px-5 py-4">
+            {actionError ? <p className="mb-3 text-sm text-red-500">{actionError}</p> : null}
+            <div className="flex gap-3">
+              <input
+                value={inputValue}
+                onChange={(event) => setInputValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    handleSend()
+                  }
+                }}
+                placeholder="Ask AI about selected documents..."
+                className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none ring-0 transition focus:border-indigo-400"
+              />
+              <button
+                onClick={handleSend}
+                disabled={chatLoading}
+                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {chatLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                Send
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <aside className="space-y-4">
+          <DocumentLibrary selectedDocIds={selectedDocIds} onSelectionChange={setSelectedDocIds} />
+
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="mb-3 text-sm font-bold text-slate-800">Study Actions</h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <button
+                onClick={handleGenerateFlashcards}
+                disabled={flashcardsLoading}
+                className="flex items-center justify-center gap-2 rounded-lg bg-indigo-100 px-4 py-3 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-200 disabled:opacity-70"
+              >
+                <Sparkles className="h-4 w-4" /> Generate Flashcards
+              </button>
+              <button
+                onClick={handleGenerateQuiz}
+                disabled={quizzesLoading}
+                className="flex items-center justify-center gap-2 rounded-lg bg-red-100 px-4 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-200 disabled:opacity-70"
+              >
+                <Sparkles className="h-4 w-4" /> Generate 10-question Exam
+              </button>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">Selected documents: {selectedDocIds.length}</p>
+          </div>
+
+          <FlashcardList flashcardSets={flashcardSets} />
+          <ExamListView quizzes={quizzes} loading={quizzesLoading} onPlayBattle={onStartBattle} />
+        </aside>
+      </div>
+
+      <CitationModal citation={citation} onClose={() => setCitation(null)} />
+    </div>
+  )
 }
