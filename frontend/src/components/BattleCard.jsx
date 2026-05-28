@@ -10,12 +10,12 @@ function resolveChoiceText(choice) {
   return choice.text || choice.label || choice.choiceId
 }
 
-export default function BattleCard({ quizId, onEndBattle }) {
-  const { battleState, loading, startBattle, answerQuestion, resumeSession } = useBattle()
+export default function BattleCard({ projectId, quizId, onEndBattle }) {
+  const { battleState, loading, startBattle, answerQuestion, resumeSession } = useBattle(projectId)
   const [opening, setOpening] = useState(true)
   const [error, setError] = useState(null)
   const [lastResult, setLastResult] = useState(null)
-  const storageKey = quizId ? `battleSession:${quizId}` : null
+  const storageKey = quizId && projectId ? `battleSession:${projectId}:${quizId}` : null
 
   useEffect(() => {
     const timer = setTimeout(() => setOpening(false), 2500)
@@ -23,8 +23,8 @@ export default function BattleCard({ quizId, onEndBattle }) {
   }, [])
 
   useEffect(() => {
-    if (!quizId) {
-      setError('Missing quiz selection.')
+    if (!quizId || !projectId) {
+      setError('Missing quiz or project selection.')
       return
     }
 
@@ -51,7 +51,7 @@ export default function BattleCard({ quizId, onEndBattle }) {
     }
 
     restoreOrStart()
-  }, [quizId, resumeSession, startBattle, storageKey])
+  }, [projectId, quizId, resumeSession, startBattle, storageKey])
 
   const session = battleState?.session
   const quiz = battleState?.quiz
@@ -86,7 +86,7 @@ export default function BattleCard({ quizId, onEndBattle }) {
 
   if (opening) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-6 text-white">
         <h2 className="mb-8 text-4xl font-black uppercase tracking-widest text-red-500">Entering Battle...</h2>
         <img src={openingGif} alt="Opening" className="w-full max-w-4xl rounded-2xl shadow-2xl" />
       </div>
@@ -95,7 +95,7 @@ export default function BattleCard({ quizId, onEndBattle }) {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-950 p-6 text-white">
         <p className="text-lg text-red-400">{error}</p>
         <button onClick={onEndBattle} className="mt-6 flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2 text-slate-200">
           <ArrowLeft className="h-4 w-4" /> Back
@@ -106,7 +106,7 @@ export default function BattleCard({ quizId, onEndBattle }) {
 
   if (!session || !quiz) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white">
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
         <LoaderCircle className="h-8 w-8 animate-spin" />
       </div>
     )

@@ -26,10 +26,11 @@ def extract_text(filename: str, data: bytes) -> str:
 
 
 
-def build_kb_metadata_sidecar(user_id: str, doc_id: str, filename: str, locator: str) -> dict:
+def build_kb_metadata_sidecar(user_id: str, project_id: str, doc_id: str, filename: str, locator: str) -> dict:
     return {
         "metadataAttributes": [
             {"key": "user_id", "value": {"type": "STRING", "stringValue": user_id}},
+            {"key": "project_id", "value": {"type": "STRING", "stringValue": project_id}},
             {"key": "doc_id", "value": {"type": "STRING", "stringValue": doc_id}},
             {"key": "filename", "value": {"type": "STRING", "stringValue": filename}},
             {"key": "locator", "value": {"type": "STRING", "stringValue": locator}},
@@ -58,6 +59,7 @@ def normalize_citation(citation_id: str, raw: dict) -> dict:
 
 def build_document_upload_result(
     user_id: str,
+    project_id: str,
     filename: str,
     content_type: str,
     storage,
@@ -67,10 +69,11 @@ def build_document_upload_result(
     doc_id = str(uuid4())
     s3_key = f"users/{user_id}/docs/{doc_id}/original/{filename}"
     storage.put(s3_key, data, content_type)
-    sidecar = build_kb_metadata_sidecar(user_id, doc_id, filename, "document")
+    sidecar = build_kb_metadata_sidecar(user_id, project_id, doc_id, filename, "document")
     storage.put_json(build_sidecar_key(s3_key), sidecar)
     item = build_document_item(
         user_id=user_id,
+        project_id=project_id,
         doc_id=doc_id,
         filename=filename,
         s3_key=s3_key,
@@ -84,8 +87,35 @@ def build_document_upload_result(
 
 
 
+def build_project_item(user_id: str, project_id: str, name: str, created_at: str) -> dict:
+    return {
+        "userId": user_id,
+        "sk": f"PROJECT#{project_id}",
+        "projectId": project_id,
+        "name": name,
+        "createdAt": created_at,
+        "updatedAt": created_at,
+    }
+
+
+
+def build_chat_thread_item(user_id: str, project_id: str, thread_id: str, title: str, created_at: str) -> dict:
+    return {
+        "userId": user_id,
+        "sk": f"THREAD#{project_id}#{created_at}#{thread_id}",
+        "projectId": project_id,
+        "threadId": thread_id,
+        "title": title,
+        "createdAt": created_at,
+        "updatedAt": created_at,
+    }
+
+
+
 def build_chat_message_item(
     user_id: str,
+    project_id: str,
+    thread_id: str,
     message_id: str,
     role: str,
     content: str,
@@ -95,7 +125,9 @@ def build_chat_message_item(
 ) -> dict:
     return {
         "userId": user_id,
-        "sk": f"CHAT#{created_at}#{message_id}",
+        "sk": f"CHAT#{project_id}#{thread_id}#{created_at}#{message_id}",
+        "projectId": project_id,
+        "threadId": thread_id,
         "messageId": message_id,
         "role": role,
         "content": content,
@@ -166,6 +198,7 @@ def parse_quiz_response(raw: str, doc_ids: list[str]) -> dict:
 
 def build_quiz_item(
     user_id: str,
+    project_id: str,
     quiz_id: str,
     title: str,
     doc_ids: list[str],
@@ -175,7 +208,8 @@ def build_quiz_item(
 ) -> dict:
     return {
         "userId": user_id,
-        "sk": f"QUIZ#{quiz_id}",
+        "sk": f"QUIZ#{project_id}#{quiz_id}",
+        "projectId": project_id,
         "quizId": quiz_id,
         "title": title,
         "docIds": doc_ids,
@@ -186,13 +220,15 @@ def build_quiz_item(
 
 
 
-def start_battle_session(user_id: str, session_id: str, quiz: dict) -> dict:
+def start_battle_session(user_id: str, project_id: str, session_id: str, quiz: dict) -> dict:
     now = utc_now()
     return {
         "userId": user_id,
-        "sk": f"BATTLE#{session_id}",
+        "sk": f"BATTLE#{project_id}#{session_id}",
+        "projectId": project_id,
         "sessionId": session_id,
         "quizId": quiz["quizId"],
+        "projectId": project_id,
         "bossHp": 100,
         "userHp": 100,
         "currentQuestionIndex": 0,
@@ -201,6 +237,20 @@ def start_battle_session(user_id: str, session_id: str, quiz: dict) -> dict:
         "startedAt": now,
         "updatedAt": now,
     }
+
+
+
+def delete_project_resources(user_id: str, project_id: str, projects_store, chat_threads_store, chat_messages_store, documents_store, flashcard_sets_store, quizzes_store, battle_sessions_store, storage) -> None:
+    documents = documents_store.list_documents(user_id, project_id)
+    for document in documents:
+        storage.delete_prefix(f"users/{user_id}/docs/{document['docId']}/")
+    chat_messages_store.delete_messages_for_project(user_id, project_id)
+    chat_threads_store.delete_threads_for_project(user_id, project_id)
+    documents_store.delete_documents_for_project(user_id, project_id)
+    flashcard_sets_store.delete_sets_for_project(user_id, project_id)
+    quizzes_store.delete_quizzes_for_project(user_id, project_id)
+    battle_sessions_store.delete_sessions_for_project(user_id, project_id)
+    projects_store.delete_project(user_id, project_id)
 
 
 

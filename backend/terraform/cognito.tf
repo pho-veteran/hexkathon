@@ -64,7 +64,7 @@ resource "aws_cognito_user_pool_domain" "main" {
 
 resource "aws_cognito_user" "demo_trainer" {
   user_pool_id = aws_cognito_user_pool.main.id
-  username     = "trainer-${var.group_id}"
+  username     = "trainer${var.group_id}@study-buddy.demo"
 
   attributes = {
     email          = "trainer${var.group_id}@study-buddy.demo"

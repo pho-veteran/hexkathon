@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LoaderCircle, Send, Sparkles } from 'lucide-react'
 import CitationModal from './CitationModal'
+import ChatThreadSidebar from './ChatThreadSidebar'
 import DocumentLibrary from './DocumentLibrary'
 import ExamListView from './ExamListView'
 import FlashcardList from './FlashcardList'
+import ProjectSwitcher from './ProjectSwitcher'
 import { useAuth } from '../context/AuthContext'
+import { useProjects } from '../context/ProjectContext'
 import { useChat } from '../hooks/useChat'
 import { useFlashcards } from '../hooks/useFlashcards'
 import { useQuizzes } from '../hooks/useQuizzes'
@@ -31,16 +34,48 @@ function CitationChips({ citations, onOpen }) {
 
 export default function Workspace({ onStartBattle }) {
   const { user, logout } = useAuth()
-  const { messages, loading: chatLoading, sendMessage } = useChat()
-  const { flashcardSets, loading: flashcardsLoading, generateFlashcards } = useFlashcards()
-  const { quizzes, loading: quizzesLoading, generateQuiz } = useQuizzes()
+  const { activeProjectId } = useProjects()
+  const { threads, messages, loading: chatLoading, createThread, sendMessage } = useChat(activeProjectId, null)
+  const [activeThreadId, setActiveThreadId] = useState(null)
+  const threadChat = useChat(activeProjectId, activeThreadId)
+  const { flashcardSets, loading: flashcardsLoading, generateFlashcards } = useFlashcards(activeProjectId)
+  const { quizzes, loading: quizzesLoading, generateQuiz } = useQuizzes(activeProjectId)
 
   const [selectedDocIds, setSelectedDocIds] = useState([])
   const [inputValue, setInputValue] = useState('')
   const [citation, setCitation] = useState(null)
   const [actionError, setActionError] = useState(null)
 
-  const flattenedMessages = useMemo(() => messages || [], [messages])
+  useEffect(() => {
+    setSelectedDocIds([])
+    setInputValue('')
+    setCitation(null)
+    setActionError(null)
+    setActiveThreadId(null)
+  }, [activeProjectId])
+
+  useEffect(() => {
+    if (!activeThreadId && threads.length > 0) {
+      setActiveThreadId(threads[0].threadId)
+    }
+    if (activeThreadId && !threads.some((thread) => thread.threadId === activeThreadId)) {
+      setActiveThreadId(threads[0]?.threadId || null)
+    }
+  }, [threads, activeThreadId])
+
+  const flattenedMessages = useMemo(() => threadChat.messages || [], [threadChat.messages])
+
+  const handleCreateThread = async () => {
+    try {
+      setActionError(null)
+      const thread = await createThread(`Chat ${threads.length + 1}`)
+      setActiveThreadId(thread.threadId)
+      return thread
+    } catch (error) {
+      setActionError(error.message)
+      return null
+    }
+  }
 
   const handleSend = async () => {
     const question = inputValue.trim()
@@ -48,10 +83,19 @@ export default function Workspace({ onStartBattle }) {
       return
     }
 
+    let targetThreadId = activeThreadId
+    if (!targetThreadId) {
+      const thread = await handleCreateThread()
+      targetThreadId = thread?.threadId || null
+    }
+    if (!targetThreadId) {
+      return
+    }
+
     setActionError(null)
     setInputValue('')
     try {
-      await sendMessage(question, selectedDocIds)
+      await sendMessage(targetThreadId, question, selectedDocIds)
     } catch (error) {
       setActionError(error.message)
       setInputValue(question)
@@ -94,13 +138,26 @@ export default function Workspace({ onStartBattle }) {
             <h1 className="text-xl font-black text-slate-900">Study Buddy Battle Quiz</h1>
             <p className="text-sm text-slate-500">Signed in as {user?.email || user?.username || user?.sub}</p>
           </div>
-          <button onClick={logout} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
-            Sign out
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="w-80">
+              <ProjectSwitcher />
+            </div>
+            <button onClick={logout} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(360px,1fr)]">
+      <div className="mx-auto grid max-w-7xl gap-6 px-6 py-6 lg:grid-cols-[280px_minmax(0,1fr)_minmax(320px,380px)]">
+        <ChatThreadSidebar
+          threads={threads}
+          activeThreadId={activeThreadId}
+          onSelectThread={setActiveThreadId}
+          onCreateThread={handleCreateThread}
+          loading={chatLoading}
+        />
+
         <section className="flex min-h-[70vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-5 py-4">
             <h2 className="text-lg font-bold text-slate-900">Grounded Chat</h2>
@@ -141,10 +198,10 @@ export default function Workspace({ onStartBattle }) {
               />
               <button
                 onClick={handleSend}
-                disabled={chatLoading}
+                disabled={threadChat.loading}
                 className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {chatLoading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {threadChat.loading ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Send
               </button>
             </div>
@@ -152,7 +209,7 @@ export default function Workspace({ onStartBattle }) {
         </section>
 
         <aside className="space-y-4">
-          <DocumentLibrary selectedDocIds={selectedDocIds} onSelectionChange={setSelectedDocIds} />
+          <DocumentLibrary projectId={activeProjectId} selectedDocIds={selectedDocIds} onSelectionChange={setSelectedDocIds} />
 
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="mb-3 text-sm font-bold text-slate-800">Study Actions</h3>

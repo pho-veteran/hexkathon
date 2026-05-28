@@ -2,6 +2,13 @@ resource "aws_apigatewayv2_api" "http" {
   name          = "study-buddy-${var.group_id}-${var.environment}"
   protocol_type = "HTTP"
   description   = "Study Buddy Battle Quiz API"
+
+  cors_configuration {
+    allow_credentials = true
+    allow_headers     = ["authorization", "content-type"]
+    allow_methods     = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
+    allow_origins     = var.frontend_urls
+  }
 }
 
 resource "aws_apigatewayv2_authorizer" "cognito" {
@@ -37,6 +44,20 @@ resource "aws_apigatewayv2_route" "any_root" {
   target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
   authorization_type = "JWT"
   authorizer_id      = aws_apigatewayv2_authorizer.cognito.id
+}
+
+resource "aws_apigatewayv2_route" "options_proxy" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "OPTIONS /{proxy+}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "NONE"
+}
+
+resource "aws_apigatewayv2_route" "options_root" {
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = "OPTIONS /"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "NONE"
 }
 
 resource "aws_apigatewayv2_route" "health" {

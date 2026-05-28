@@ -1,30 +1,31 @@
 locals {
-  lambda_build_dir = "${path.module}/../.lambda-build"
+  lambda_build_dir  = "${path.module}/../.lambda-build"
+  lambda_source_dir = "${path.module}/.."
 }
 
 resource "terraform_data" "lambda_package_prep" {
-  triggers_replace = [
-    filesha256("${path.module}/../requirements.txt"),
-    filesha256("${path.module}/../lambda_handler.py"),
-    filesha256("${path.module}/../src/app.py"),
-    filesha256("${path.module}/../src/config.py"),
-    filesha256("${path.module}/../src/handlers.py"),
-    filesha256("${path.module}/../src/auth.py"),
-    filesha256("${path.module}/../src/adapters/ai.py"),
-    filesha256("${path.module}/../src/adapters/factory.py"),
-    filesha256("${path.module}/../src/adapters/storage.py"),
-    filesha256("${path.module}/../src/adapters/userstore.py"),
-    filesha256("${path.module}/../src/adapters/vector.py"),
-  ]
+  triggers_replace = concat([
+    filesha256("${local.lambda_source_dir}/requirements.lambda.txt"),
+    filesha256("${local.lambda_source_dir}/lambda_handler.py"),
+  ], [
+    for file in sort(fileset(local.lambda_source_dir, "src/**/*.py")) : filesha256("${local.lambda_source_dir}/${file}")
+  ])
 
   provisioner "local-exec" {
-    command = <<-EOT
-      set -euo pipefail
-      rm -rf "${local.lambda_build_dir}"
-      mkdir -p "${local.lambda_build_dir}"
-      cp -R "${path.module}/../src" "${local.lambda_build_dir}/src"
-      cp "${path.module}/../lambda_handler.py" "${local.lambda_build_dir}/lambda_handler.py"
-      pip install --no-cache-dir -r "${path.module}/../requirements.txt" --target "${local.lambda_build_dir}"
+    interpreter = ["pwsh", "-NoLogo", "-NonInteractive", "-Command"]
+    command     = <<-EOT
+      $projectRoot = [System.IO.Path]::GetFullPath("${local.lambda_source_dir}")
+      $buildDir = [System.IO.Path]::GetFullPath("${local.lambda_build_dir}")
+      if (Test-Path $buildDir) { Remove-Item $buildDir -Recurse -Force -Confirm:$false }
+      New-Item -ItemType Directory -Path $buildDir | Out-Null
+      Copy-Item "$projectRoot/src" "$buildDir/src" -Recurse -Force
+      Copy-Item "$projectRoot/lambda_handler.py" "$buildDir/lambda_handler.py" -Force
+      python -m pip install --no-cache-dir --platform manylinux2014_x86_64 --python-version 3.12 --implementation cp --only-binary=:all: -r "$projectRoot/requirements.lambda.txt" --target "$buildDir"
+      Get-ChildItem $buildDir -Recurse -Directory | Where-Object { $_.Name -in @('tests','__pycache__') } | Remove-Item -Recurse -Force -Confirm:$false
+      Get-ChildItem $buildDir -Recurse -Filter *.pyc | Remove-Item -Force -Confirm:$false
+      if (-not (Test-Path "$buildDir/lambda_handler.py")) { throw 'Missing lambda_handler.py' }
+      if (-not (Test-Path "$buildDir/src/app.py")) { throw 'Missing src/app.py' }
+      if (-not (Test-Path "$buildDir/boto3/__init__.py")) { throw 'Missing boto3 package' }
     EOT
   }
 }
@@ -46,16 +47,18 @@ resource "aws_lambda_function" "backend" {
       STORAGE_BUCKET        = aws_s3_bucket.uploads.id
       USERSTORE_BACKEND     = "dynamodb"
       DOCUMENTS_TABLE       = aws_dynamodb_table.documents.name
+      PROJECTS_TABLE        = aws_dynamodb_table.projects.name
+      CHAT_THREADS_TABLE    = aws_dynamodb_table.chat_threads.name
       CHAT_MESSAGES_TABLE   = aws_dynamodb_table.chat_messages.name
       FLASHCARD_SETS_TABLE  = aws_dynamodb_table.flashcard_sets.name
       QUIZZES_TABLE         = aws_dynamodb_table.quizzes.name
       BATTLE_SESSIONS_TABLE = aws_dynamodb_table.battle_sessions.name
       AI_BACKEND            = "bedrock"
       AI_MODEL_ID           = var.bedrock_model_id
-      VECTOR_BACKEND        = "bedrock_kb"
-      VECTOR_BEDROCK_KB_ID  = aws_bedrockagent_knowledge_base.main.id
-      AWS_REGION            = var.aws_region
-      CORS_ORIGINS          = join(",", var.frontend_urls)
+      VECTOR_BACKEND             = "bedrock_kb"
+      VECTOR_BEDROCK_KB_ID       = aws_bedrockagent_knowledge_base.main.id
+      VECTOR_BEDROCK_DATA_SOURCE_ID = aws_bedrockagent_data_source.uploads.data_source_id
+      CORS_ORIGINS               = join(",", var.frontend_urls)
       COGNITO_USER_POOL_ID  = aws_cognito_user_pool.main.id
       COGNITO_CLIENT_ID     = aws_cognito_user_pool_client.frontend.id
       COGNITO_DOMAIN        = aws_cognito_user_pool_domain.main.domain

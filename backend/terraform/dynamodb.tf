@@ -27,6 +27,56 @@ resource "aws_dynamodb_table" "documents" {
   }
 }
 
+resource "aws_dynamodb_table" "projects" {
+  name         = "${local.table_prefix}-projects"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "userId"
+  range_key    = "sk"
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+}
+
+resource "aws_dynamodb_table" "chat_threads" {
+  name         = "${local.table_prefix}-chat-threads"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "userId"
+  range_key    = "sk"
+
+  attribute {
+    name = "userId"
+    type = "S"
+  }
+
+  attribute {
+    name = "sk"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+}
+
 resource "aws_dynamodb_table" "chat_messages" {
   name         = "${local.table_prefix}-chat-messages"
   billing_mode = "PAY_PER_REQUEST"

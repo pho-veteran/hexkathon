@@ -5,6 +5,7 @@ from src.adapters.userstore import build_document_item
 def test_build_document_item_uses_user_partition_and_doc_sort_key():
     item = build_document_item(
         user_id="user-1",
+        project_id="project-1",
         doc_id="doc-1",
         filename="lesson.pdf",
         s3_key="users/user-1/docs/doc-1/original/lesson.pdf",
@@ -15,6 +16,7 @@ def test_build_document_item_uses_user_partition_and_doc_sort_key():
     )
 
     assert item["userId"] == "user-1"
-    assert item["sk"] == "DOC#doc-1"
+    assert item["projectId"] == "project-1"
+    assert item["sk"] == "DOC#project-1#doc-1"
     assert item["docId"] == "doc-1"
     assert item["filename"] == "lesson.pdf"

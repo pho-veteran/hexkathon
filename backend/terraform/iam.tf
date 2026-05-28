@@ -59,6 +59,8 @@ resource "aws_iam_role_policy" "lambda_exec" {
         ]
         Resource = [
           aws_dynamodb_table.documents.arn,
+          aws_dynamodb_table.projects.arn,
+          aws_dynamodb_table.chat_threads.arn,
           aws_dynamodb_table.chat_messages.arn,
           aws_dynamodb_table.flashcard_sets.arn,
           aws_dynamodb_table.quizzes.arn,
@@ -81,13 +83,6 @@ resource "aws_iam_role_policy" "lambda_exec" {
         ]
         Resource = [aws_bedrockagent_knowledge_base.main.arn]
       },
-      {
-        Effect = "Allow"
-        Action = [
-          "aoss:APIAccessAll"
-        ]
-        Resource = [aws_opensearchserverless_collection.bedrock_kb.arn]
-      }
     ]
   })
 }
@@ -137,15 +132,30 @@ resource "aws_iam_role_policy" "bedrock_kb" {
         Action = [
           "bedrock:InvokeModel"
         ]
-        Resource = ["arn:aws:bedrock:${var.aws_region}::foundation-model/amazon.titan-embed-text-v2:0"]
+        Resource = ["arn:aws:bedrock:${var.aws_region}::foundation-model/cohere.embed-english-v3"]
       },
       {
         Effect = "Allow"
         Action = [
-          "aoss:APIAccessAll"
+          "aws-marketplace:Subscribe",
+          "aws-marketplace:Unsubscribe",
+          "aws-marketplace:ViewSubscriptions"
         ]
-        Resource = [aws_opensearchserverless_collection.bedrock_kb.arn]
-      }
+        Resource = ["*"]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "s3vectors:QueryVectors",
+          "s3vectors:GetVectors",
+          "s3vectors:GetIndex",
+          "s3vectors:GetVectorBucket"
+        ]
+        Resource = [
+          aws_s3vectors_index.bedrock_kb.index_arn,
+          aws_s3vectors_vector_bucket.bedrock_kb.vector_bucket_arn,
+        ]
+      },
     ]
   })
 }

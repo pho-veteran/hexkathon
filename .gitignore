@@ -3,6 +3,8 @@
 
 /.claude/
 
+/.superpowers/
+
 # Local env
 .env
 

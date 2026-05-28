@@ -10,6 +10,17 @@ class S3Storage:
         self.bucket = bucket
         self.client = boto3.client("s3", region_name=region)
 
+    def delete_prefix(self, prefix: str) -> None:
+        paginator = self.client.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+            contents = page.get("Contents", [])
+            if not contents:
+                continue
+            self.client.delete_objects(
+                Bucket=self.bucket,
+                Delete={"Objects": [{"Key": item["Key"]} for item in contents]},
+            )
+
     def put(self, key: str, data: bytes, content_type: str) -> None:
         self.client.put_object(
             Bucket=self.bucket,

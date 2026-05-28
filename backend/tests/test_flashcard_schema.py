@@ -19,11 +19,12 @@ def test_parse_flashcard_response_returns_normalized_cards():
     assert parsed["cards"][0]["front"] == "Q1"
 
 
+
 def test_generated_flashcard_sets_need_unique_ids():
     first_set_id = "set-1"
     second_set_id = "set-2"
 
-    first_key = f"FLASHCARD#{first_set_id}"
-    second_key = f"FLASHCARD#{second_set_id}"
+    first_key = f"FLASHCARD#project-1#{first_set_id}"
+    second_key = f"FLASHCARD#project-1#{second_set_id}"
 
     assert first_key != second_key

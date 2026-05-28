@@ -19,13 +19,15 @@ variable "environment" {
 variable "bedrock_model_id" {
   description = "Bedrock model ID for AI generation"
   type        = string
-  default     = "anthropic.claude-3-haiku-20240307-v1:0"
+  default     = "anthropic.claude-3-5-haiku-20241022-v1:0"
 }
 
 variable "frontend_urls" {
   description = "Allowed frontend origins for CORS and Cognito"
   type        = list(string)
-  default     = ["http://localhost:5173"]
+  default = [
+    "http://localhost:5173",
+  ]
 }
 
 variable "cloudfront_certificate_arn" {
@@ -38,6 +40,12 @@ variable "cloudfront_domain_aliases" {
   description = "Custom domain aliases for CloudFront (optional)"
   type        = list(string)
   default     = []
+}
+
+variable "enable_cloudfront" {
+  description = "Whether to create a CloudFront distribution for the frontend"
+  type        = bool
+  default     = true
 }
 
 variable "budget_notification_email" {

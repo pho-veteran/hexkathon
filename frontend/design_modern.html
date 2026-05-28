@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hex — Attack Study</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Space+Grotesk:wght@400;500;600;700&family=Karla:wght@400;500;600;700&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #f4f1eb;
+      --surface: #ffffff;
+      --surface-2: #fafaf8;
+      --text: #141413;
+      --text-2: #5c5c56;
+      --text-3: #9b9b96;
+      --accent: #d4441a;
+      --border: #e5e2db;
+      --border-2: #d1cec5;
+      --radius: 4px;
+      --font-display: 'Space Grotesk', sans-serif;
+      --font-body: 'Karla', sans-serif;
+      --font-mono: 'DM Mono', monospace;
+    }
+
+    body { font-family: var(--font-body); background: var(--bg); color: var(--text); min-height: 100vh; overflow: hidden; }
+
+    /* ── Shell ── */
+    .shell { display: flex; height: 100vh; }
+    .sidebar { width: 220px; flex-shrink: 0; border-right: 1.5px solid var(--border); background: var(--surface); display: flex; flex-direction: column; overflow: hidden; }
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sb-header { padding: 12px 16px; border-bottom: 1.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .sb-logo { font-family: var(--font-display); font-size: 16px; font-weight: 700; letter-spacing: -0.04em; }
+    .sb-logo span { color: var(--accent); }
+    .sb-label { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+    .chat-list { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+    .chat-item { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: var(--radius); cursor: pointer; transition: all 0.12s; border: 1.5px solid transparent; }
+    .chat-item:hover { background: var(--bg); }
+    .chat-item.active { background: var(--bg); border-color: var(--border); }
+    .chat-icon { font-size: 14px; flex-shrink: 0; }
+    .chat-meta { flex: 1; min-width: 0; }
+    .chat-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-time { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+    .chat-preview { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chat-add-wrap { padding: 10px 12px; border-top: 1.5px solid var(--border); }
+    .chat-add { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: var(--radius); cursor: pointer; font-size: 12px; color: var(--text-3); transition: all 0.12s; border: 1.5px dashed transparent; }
+    .chat-add:hover { border-color: var(--border-2); color: var(--text-2); }
+
+    /* ── Topbar ── */
+    .topbar { padding: 12px 24px; border-bottom: 1.5px solid var(--border); display: flex; align-items: center; justify-content: space-between; background: var(--surface); }
+    .topbar-left { display: flex; align-items: center; gap: 8px; }
+    .project-toggle { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: pointer; font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: -0.02em; transition: all 0.12s; }
+    .project-toggle:hover { border-color: var(--text-3); }
+    .project-arrow { font-size: 10px; color: var(--text-3); transition: transform 0.15s; }
+    .project-menu { display: none; position: absolute; top: calc(100% + 4px); left: 0; min-width: 200px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); box-shadow: 0 4px 16px rgba(0,0,0,0.08); z-index: 100; overflow: hidden; }
+    .project-menu.show { display: block; }
+    .pm-item { padding: 9px 14px; font-size: 13px; font-weight: 500; cursor: pointer; transition: background 0.12s; display: flex; align-items: center; gap: 8px; }
+    .pm-item:hover { background: var(--bg); }
+    .pm-item.active { background: var(--bg); }
+    .pm-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; opacity: 0; }
+    .pm-item.active .pm-dot { opacity: 1; }
+    .pm-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pm-count { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+    .pm-new { padding: 10px 14px; border-top: 1.5px solid var(--border); font-size: 12px; color: var(--text-3); cursor: pointer; display: flex; align-items: center; gap: 6px; }
+    .pm-new:hover { color: var(--text-2); }
+    .topbar-sep { color: var(--text-3); font-weight: 400; }
+    .topbar-chat-name { font-size: 14px; font-weight: 500; color: var(--text-2); }
+    .tab-row { display: flex; gap: 2px; }
+    .tab { padding: 5px 12px; font-size: 12px; font-weight: 500; border-radius: var(--radius); cursor: pointer; color: var(--text-2); border: none; background: transparent; font-family: var(--font-body); transition: all 0.12s; }
+    .tab.active { background: var(--text); color: var(--bg); }
+    .tab:not(.active):hover { background: var(--bg); color: var(--text); }
+
+    /* ── Content ── */
+    .content-body { display: flex; flex: 1; overflow: hidden; }
+    .content-left { flex: 6; display: flex; flex-direction: column; overflow: hidden; border-right: 1.5px solid var(--border); }
+    .content-right { flex: 4; display: flex; flex-direction: column; overflow: hidden; background: var(--surface-2); }
+
+    /* Chat header */
+    .chat-header { padding: 12px 20px; border-bottom: 1.5px solid var(--border); display: flex; align-items: center; gap: 8px; background: var(--surface); }
+    .chat-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+    .chat-header-name { font-size: 13px; font-weight: 500; }
+    .chat-header-time { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); margin-left: auto; }
+
+    /* Messages */
+    .messages { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; scrollbar-width: thin; scrollbar-color: var(--border-2) transparent; }
+    .msg { display: flex; flex-direction: column; gap: 4px; }
+    .msg-label { font-family: var(--font-mono); font-size: 10px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.08em; }
+    .msg.bot .msg-label::before { content: 'AI  '; }
+    .msg.user { align-items: flex-end; }
+    .msg.user .msg-label::before { content: 'You  '; }
+    .bubble { padding: 11px 14px; border-radius: var(--radius); font-size: 13px; line-height: 1.6; max-width: 320px; }
+    .msg.bot .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius) var(--radius) var(--radius) 2px; }
+    .msg.user .bubble { background: var(--accent); color: white; border-radius: var(--radius) var(--radius) 2px var(--radius); }
+
+    /* Input */
+    .input-area { padding: 0 24px 20px; background: var(--surface); }
+    .input-wrap { display: flex; gap: 8px; align-items: center; background: var(--surface-2); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 8px 12px; transition: border-color 0.12s; }
+    .input-wrap:focus-within { border-color: var(--text); }
+    .input-wrap input { flex: 1; background: transparent; border: none; outline: none; font-size: 13px; font-family: var(--font-body); color: var(--text); }
+    .input-wrap input::placeholder { color: var(--text-3); }
+    .send-btn { width: 30px; height: 30px; border-radius: 3px; background: var(--accent); border: none; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.12s; font-size: 13px; }
+    .send-btn:hover { background: #b83816; }
+
+    /* Right tools */
+    .tools-header { padding: 16px 20px 12px; border-bottom: 1.5px solid var(--border); background: var(--surface); }
+    .section-label { font-family: var(--font-mono); font-size: 9px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+    .tool-cards { padding: 14px 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1; }
+
+    .tool-card { border: 1.5px solid var(--border); border-radius: var(--radius); padding: 12px 14px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; transition: border-color 0.12s; }
+    .tool-card:hover { border-color: var(--text-3); }
+    .tool-card-head { display: flex; justify-content: space-between; align-items: flex-start; }
+    .tool-name { font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: -0.02em; }
+    .tool-icon-box { width: 26px; height: 26px; background: var(--bg); border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+    .tool-desc { font-size: 11px; color: var(--text-2); line-height: 1.5; }
+
+    .empty-state { font-family: var(--font-mono); font-size: 10px; color: var(--text-3); text-align: center; padding: 12px 0; }
+
+    /* List items */
+    .file-list, .exam-list, .flashcard-list, .exam-select-list { display: flex; flex-direction: column; gap: 4px; min-height: 36px; }
+    .file-item, .exam-item, .flashcard-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1.5px solid var(--border); border-radius: var(--radius); background: var(--surface); cursor: pointer; transition: all 0.12s; }
+    .file-item:hover, .exam-item:hover, .flashcard-item:hover { border-color: var(--text-3); }
+    .file-item.active, .exam-item.active, .flashcard-item.active { border-color: var(--accent); background: rgba(212,68,26,0.04); }
+    .item-icon { font-size: 14px; flex-shrink: 0; }
+    .item-meta { flex: 1; min-width: 0; }
+    .item-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-meta-row { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: var(--text-3); }
+    .item-check { width: 14px; height: 14px; border-radius: 2px; border: 1.5px solid var(--border-2); display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; color: transparent; }
+    .file-item.active .item-check, .exam-item.active .item-check, .flashcard-item.active .item-check { background: var(--accent); border-color: var(--accent); color: white; }
+    .item-remove { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-3); cursor: pointer; border-radius: 2px; transition: color 0.12s; flex-shrink: 0; }
+    .item-remove:hover { color: var(--accent); }
+
+    .upload-zone { border: 1.5px dashed var(--border-2); border-radius: var(--radius); padding: 12px; text-align: center; cursor: pointer; transition: all 0.12s; }
+    .upload-zone:hover { border-color: var(--text-3); background: var(--surface-2); }
+    .upload-zone p { font-size: 11px; color: var(--text-3); }
+    .upload-zone .big { font-size: 18px; margin-bottom: 4px; }
+
+    .config-row { display: flex; flex-direction: column; gap: 5px; }
+    .config-row label { font-size: 11px; color: var(--text-2); }
+    .config-row select { padding: 7px 9px; background: var(--surface-2); border: 1.5px solid var(--border); border-radius: var(--radius); font-size: 12px; font-family: var(--font-body); color: var(--text); outline: none; cursor: pointer; }
+    .config-row select:focus { border-color: var(--text); }
+    .generate-btn { width: 100%; padding: 9px; background: transparent; border: 1.5px solid var(--text); border-radius: var(--radius); font-size: 12px; font-weight: 600; font-family: var(--font-display); letter-spacing: -0.02em; cursor: pointer; transition: all 0.12s; }
+    .generate-btn:hover { background: var(--text); color: var(--bg); }
+    .generate-btn.subtle { border-color: var(--border-2); color: var(--text-2); }
+    .generate-btn.subtle:hover { background: var(--text); color: var(--bg); }
+
+    .battle-card { border-color: var(--text-3); }
+    .battle-card.ready { border-color: var(--accent); }
+    .battle-btn-full { width: 100%; padding: 10px; background: var(--text); color: var(--bg); border: none; border-radius: var(--radius); font-size: 12px; font-weight: 600; font-family: var(--font-display); letter-spacing: -0.02em; cursor: pointer; margin-top: 6px; transition: background 0.12s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .battle-btn-full:hover { background: #333331; }
+    .battle-btn-full:disabled { opacity: 0.35; cursor: not-allowed; }
+    .battle-btn-full:disabled:hover { background: var(--text); }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+
+    /* ── BATTLE SCREEN ── */
+    .battle-screen { display: none; flex-direction: column; }
+    .battle-screen.active { display: flex; }
+    .learning-screen { display: flex; flex-direction: column; flex: 1; }
+    .learning-screen.hidden { display: none; }
+
+    .battle-root {
+      min-height: 100vh;
+      background: #0f172a;
+      color: white;
+      font-family: ui-monospace, monospace;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .battle-root.bg-correct { background: #14532d; }
+    .battle-root.bg-wrong { background: #7f1d1d; }
+    .battle-root.bg-win { background: #14532d; }
+    .battle-root.bg-lose { background: #7f1d1d; }
+
+    /* Opening */
+    .b-opening { flex-direction: column; align-items: center; justify-content: center; gap: 0; }
+    .b-opening-title { font-size: 36px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em; color: #ef4444; animation: glow-pulse 1.5s ease-in-out infinite; }
+    @keyframes glow-pulse { 0%,100%{opacity:1;text-shadow:0 0 15px rgba(239,68,68,0.8)} 50%{opacity:0.6;text-shadow:0 0 30px rgba(239,68,68,1)} }
+    .b-opening-gif { width: 100%; max-width: 640px; border-radius: 16px; box-shadow: 0 0 50px rgba(239,68,68,0.3); max-height: 65vh; object-fit: cover; mix-blend-mode: screen; }
+
+    /* Difficulty */
+    .b-diff { flex-direction: column; align-items: center; justify-content: center; gap: 32px; }
+    .b-diff-title { font-size: 36px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; background: linear-gradient(135deg, #ef4444, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-family: ui-monospace, monospace; }
+    .b-diff-btns { display: flex; gap: 16px; }
+    .b-diff-btn { padding: 12px 36px; border: 2px solid #334155; background: #1e293b; border-radius: 8px; color: #94a3b8; font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; cursor: pointer; transition: all 0.15s; font-family: ui-monospace, monospace; }
+    .b-diff-btn:hover { border-color: #6366f1; color: white; }
+    .b-diff-btn.easy:hover { border-color: #22c55e; }
+    .b-diff-btn.medium:hover { border-color: #f97316; }
+    .b-diff-btn.hard:hover { border-color: #ef4444; }
+    .b-back-btn { margin-top: 16px; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; background: none; border: none; color: inherit; transition: color 0.15s; }
+    .b-back-btn:hover { color: white; }
+
+    /* Game */
+    .b-game { flex-direction: column; flex: 1; max-width: 720px; width: 100%; margin: 0 auto; gap: 16px; }
+    .b-flee-btn { align-self: flex-start; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; background: none; border: none; color: inherit; transition: color 0.15s; font-family: ui-monospace, monospace; }
+    .b-flee-btn:hover { color: white; }
+
+    /* Boss */
+    .b-boss-wrap { border: 2px solid #dc2626; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 0 20px rgba(239,68,68,0.4); }
+    .b-boss-inner { display: flex; align-items: center; justify-content: center; padding: 32px; min-height: 200px; background: #0f172a; }
+    .b-boss-img { max-height: 200px; width: auto; object-fit: contain; position: relative; z-index: 2; }
+    .b-boss-placeholder { width: 160px; height: 160px; background: linear-gradient(135deg, #7f1d1d, #450a0a); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 80px; position: relative; z-index: 2; }
+    .b-boss-gradient { position: absolute; bottom: 0; left: 0; right: 0; height: 60px; background: linear-gradient(to top, #0f172a, transparent); z-index: 3; pointer-events: none; }
+    .b-boss-label { position: absolute; bottom: 12px; left: 16px; z-index: 4; display: flex; align-items: center; gap: 8px; }
+    .b-boss-icon { font-size: 24px; }
+    .b-boss-name { font-size: 18px; font-weight: 700; text-transform: uppercase; color: #ef4444; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+    /* Boss hit effects */
+    .b-boss-flash { position: absolute; inset: 0; background: rgba(239,68,68,0.35); animation: bossFlash 0.6s ease-out forwards; z-index: 5; pointer-events: none; border-radius: 12px; }
+    @keyframes bossFlash { 0%{opacity:0;transform:scale(0.9)} 40%{opacity:1} 100%{opacity:0;transform:scale(1)} }
+    .b-boss-shake { animation: bossShake 0.4s ease-in-out; }
+    @keyframes bossShake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(8px)} 75%{transform:translateX(-8px)} }
+    .b-dmg-float { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-size: 28px; font-weight: 900; color: #ef4444; text-shadow: 0 0 12px rgba(255,80,80,0.9); animation: dmgFloat 0.9s ease-out forwards; z-index: 10; white-space: nowrap; }
+    @keyframes dmgFloat { 0%{opacity:1;transform:translate(-50%,0) scale(1)} 100%{opacity:0;transform:translate(-50%,-80px) scale(1.3)} }
+    .b-crit-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 24px; font-weight: 900; color: #fbbf24; text-transform: uppercase; letter-spacing: 0.2em; text-shadow: 0 0 16px rgba(255,200,0,0.9); animation: critLabel 0.85s ease-out forwards; z-index: 10; white-space: nowrap; }
+    @keyframes critLabel { 0%{opacity:0;transform:translate(-50%,-50%) scale(0.5) rotate(-10deg)} 40%{opacity:1;transform:translate(-50%,-50%) scale(1.2) rotate(5deg)} 100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)} }
+
+    /* Boss HP */
+    .b-hp-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .b-hp-label { font-size: 12px; font-weight: 600; text-transform: uppercase; color: #ef4444; white-space: nowrap; }
+    .b-hp-track { flex: 1; height: 16px; background: #1e293b; border-radius: 999px; overflow: hidden; border: 1px solid #334155; }
+    .b-hp-fill { height: 100%; background: #ef4444; border-radius: 999px; transition: width 0.3s; }
+    .b-hp-val { font-size: 12px; color: #64748b; white-space: nowrap; }
+    .b-hp-pulse { animation: hpPulse 0.5s ease; }
+    @keyframes hpPulse { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 12px rgba(239,68,68,0.8)} }
+
+    /* Question */
+    .b-q-wrap { display: flex; flex-direction: column; gap: 12px; }
+    .b-q-meta { display: flex; justify-content: space-between; align-items: center; }
+    .b-q-num { font-size: 13px; font-weight: 600; color: #64748b; }
+    .b-q-score { font-size: 13px; font-weight: 600; color: #818cf8; text-transform: uppercase; letter-spacing: 0.08em; }
+    .b-q-box { padding: 20px; background: #1e293b; border: 1.5px solid #334155; border-radius: 12px; text-align: center; font-size: 17px; font-weight: 600; line-height: 1.5; color: #f1f5f9; transition: border-color 0.3s, box-shadow 0.3s; }
+    .b-q-box.flash-correct { border-color: #22c55e; box-shadow: 0 0 20px rgba(34,197,94,0.3); }
+    .b-q-box.flash-wrong { border-color: #ef4444; box-shadow: 0 0 20px rgba(239,68,68,0.3); }
+    .b-q-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .b-q-opt { padding: 14px 16px; background: #1e293b; border: 1.5px solid #334155; border-radius: 8px; color: #94a3b8; font-size: 14px; text-align: left; cursor: pointer; transition: all 0.15s; display: flex; gap: 10px; align-items: flex-start; line-height: 1.4; }
+    .b-q-opt:hover:not(:disabled) { border-color: #6366f1; color: white; background: #1e1b4b; }
+    .b-q-opt:disabled { cursor: default; }
+    .b-q-opt.correct { border-color: #22c55e; background: rgba(34,197,94,0.2); color: #4ade80; }
+    .b-q-opt.wrong { border-color: #ef4444; background: rgba(239,68,68,0.2); color: #f87171; }
+    .b-q-opt.dim { opacity: 0.5; }
+    .b-q-opt .opt-letter { font-weight: 700; color: #6366f1; flex-shrink: 0; }
+    .b-q-opt.correct .opt-letter { color: #22c55e; }
+    .b-q-opt.wrong .opt-letter { color: #ef4444; }
+
+    /* Player row */
+    .b-player-row { display: flex; align-items: center; gap: 12px; }
+    .b-player-info { flex: 1; }
+    .b-player-label-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+    .b-player-name { font-size: 14px; font-weight: 700; text-transform: uppercase; color: #4ade80; }
+    .b-player-hp-val { font-size: 12px; color: #64748b; }
+    .b-player-track { height: 14px; background: #1e293b; border-radius: 999px; overflow: hidden; border: 1px solid #334155; }
+    .b-player-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #22c55e, #4ade80); border-radius: 999px; transition: width 0.3s; }
+    .b-player-pulse { animation: playerPulse 0.5s ease; }
+    @keyframes playerPulse { 0%,100%{box-shadow:none} 50%{box-shadow:0 0 12px rgba(239,68,68,0.8)} }
+    .b-player-av { width: 72px; height: 72px; border-radius: 50%; border: 4px solid #22c55e; background: #1e293b; display: flex; align-items: center; justify-content: center; font-size: 36px; flex-shrink: 0; box-shadow: 0 0 20px rgba(34,197,94,0.4); transition: all 0.3s; }
+    .b-player-av.hit { border-color: #ef4444; animation: playerShake 0.5s ease-in-out; box-shadow: 0 0 20px rgba(239,68,68,0.5); }
+    .b-player-av.streak { border-color: #fbbf24; box-shadow: 0 0 20px rgba(251,191,36,0.5); }
+    @keyframes playerShake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-8px) rotate(-3deg)} 40%{transform:translateX(8px) rotate(3deg)} 60%{transform:translateX(-6px) rotate(-2deg)} 80%{transform:translateX(6px) rotate(2deg)} }
+    .b-self-dmg { position: absolute; right: 0; top: -10px; font-size: 20px; font-weight: 900; color: #ef4444; text-shadow: 0 0 8px rgba(255,80,80,0.9); animation: selfDmg 0.9s ease-out forwards; white-space: nowrap; }
+    @keyframes selfDmg { 0%{opacity:1;transform:translateY(0)} 100%{opacity:0;transform:translateY(-50px)} }
+    .b-score-val { font-size: 32px; font-weight: 700; color: #f97316; }
+    .b-score-label { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.1em; }
+
+    /* Progress + Timer */
+    .b-footer { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid #1e293b; padding-top: 12px; }
+    .b-pips { display: flex; gap: 8px; justify-content: center; }
+    .b-pip { width: 32px; height: 32px; border-radius: 50%; border: 2px solid #334155; background: #0f172a; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #334155; transition: all 0.2s; }
+    .b-pip.done-correct { background: rgba(34,197,94,0.2); border-color: #22c55e; color: #22c55e; box-shadow: 0 0 8px rgba(34,197,94,0.4); }
+    .b-pip.done-wrong { background: rgba(239,68,68,0.2); border-color: #ef4444; color: #ef4444; }
+    .b-pip.current { border-color: #818cf8; color: #818cf8; box-shadow: 0 0 10px rgba(99,102,241,0.4); animation: pipGlow 1.5s ease-in-out infinite; }
+    @keyframes pipGlow { 0%,100%{box-shadow:0 0 8px rgba(99,102,241,0.4)} 50%{box-shadow:0 0 16px rgba(99,102,241,0.7)} }
+    .b-timer-row { display: flex; align-items: center; gap: 8px; }
+    .b-timer-label { font-size: 11px; color: #475569; font-weight: 700; }
+    .b-timer-val { font-size: 14px; font-weight: 700; color: #818cf8; margin-left: auto; }
+    .b-timer-val.low { color: #ef4444; animation: glow-pulse 0.8s ease-in-out infinite; }
+    .b-timer-track { flex: 1; height: 8px; background: #1e293b; border-radius: 999px; overflow: hidden; }
+    .b-timer-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #818cf8); border-radius: 999px; transition: width 1s linear; }
+    .b-timer-fill.low { background: linear-gradient(90deg, #ef4444, #f87171); }
+
+    /* Game Over */
+    .b-gameover { flex-direction: column; align-items: center; justify-content: center; gap: 24px; flex: 1; text-align: center; }
+    .b-go-img { width: 100%; max-width: 600px; border-radius: 16px; border: 4px solid; object-fit: cover; max-height: 55vh; }
+    .b-go-img.win { border-color: #22c55e; box-shadow: 0 0 40px rgba(34,197,94,0.4); }
+    .b-go-img.lose { border-color: #ef4444; box-shadow: 0 0 40px rgba(239,68,68,0.4); }
+    .b-go-img-inner { width: 100%; max-width: 600px; border-radius: 16px; border: 4px solid; display: flex; align-items: center; justify-content: center; font-size: 120px; }
+    .b-go-img-inner.win { border-color: #22c55e; background: linear-gradient(135deg, #14532d, #166534); box-shadow: 0 0 40px rgba(34,197,94,0.4); }
+    .b-go-img-inner.lose { border-color: #ef4444; background: linear-gradient(135deg, #7f1d1d, #450a0a); box-shadow: 0 0 40px rgba(239,68,68,0.4); }
+    .b-go-title { font-size: 56px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; }
+    .b-go-title.win { color: #4ade80; text-shadow: 0 0 30px rgba(34,197,94,0.6); }
+    .b-go-title.lose { color: #ef4444; text-shadow: 0 0 30px rgba(239,68,68,0.6); }
+    .b-go-score { font-size: 20px; color: #94a3b8; }
+    .b-go-score span { color: white; }
+    .b-replay-btn { padding: 14px 40px; background: white; color: #0f172a; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; text-transform: uppercase; cursor: pointer; transition: all 0.15s; box-shadow: 0 4px 20px rgba(0,0,0,0.3); font-family: ui-monospace, monospace; }
+    .b-replay-btn:hover { transform: scale(1.04); }
+  </style>
+</head>
+<body>
+
+<!-- LEARNING SCREEN -->
+<div class="learning-screen" id="learningScreen">
+  <div class="shell">
+
+    <!-- Sidebar: Chat History -->
+    <div class="sidebar">
+      <div class="sb-header">
+        <div class="sb-logo">hex<span>.</span></div>
+        <div class="sb-label">History</div>
+      </div>
+      <div class="chat-list" id="chatList"></div>
+      <div class="chat-add-wrap">
+        <div class="chat-add" onclick="addChat()"><span>+</span> New Chat</div>
+      </div>
+    </div>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="topbar">
+        <div class="topbar-left">
+          <div style="position:relative;">
+            <button class="project-toggle" onclick="toggleProjectDropdown()">
+              <span id="currentProjectName">AWS Fundamentals</span>
+              <span class="project-arrow" id="projectArrow">▼</span>
+            </button>
+            <div class="project-menu" id="projectMenu">
+              <div id="projectMenuList"></div>
+              <div class="pm-new" onclick="addProject()"><span>+</span> New Project</div>
+            </div>
+          </div>
+          <span class="topbar-sep">/</span>
+          <span class="topbar-chat-name" id="topbarChatName">—</span>
+        </div>
+        <div class="tab-row">
+          <button class="tab active">Learn</button>
+          <button class="tab">Cards</button>
+          <button class="tab">Files</button>
+        </div>
+      </div>
+
+      <div class="content-body">
+        <!-- Left: Chat -->
+        <div class="content-left">
+          <div class="chat-header">
+            <div class="chat-status-dot"></div>
+            <span class="chat-header-name" id="chatHeaderName">—</span>
+            <span class="chat-header-time" id="chatHeaderTime"></span>
+          </div>
+          <div class="messages" id="chatMessages">
+            <div class="msg bot"><div class="msg-label"></div><div class="bubble">Chào bạn! Hỏi AI về tài liệu trong project.</div></div>
+          </div>
+          <div class="input-area">
+            <div class="input-wrap">
+              <input placeholder="Ask about the documents..." id="chatInput" onkeydown="if(event.key==='Enter')sendChat()">
+              <button class="send-btn" onclick="sendChat()">→</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Tools -->
+        <div class="content-right">
+          <div class="tools-header">
+            <div class="section-label">// project tools</div>
+          </div>
+          <div class="tool-cards">
+
+            <!-- Files -->
+            <div class="tool-card">
+              <div class="tool-card-head">
+                <div>
+                  <div class="tool-name">Tài liệu</div>
+                  <div class="tool-desc" id="fileCountLabel">0 files</div>
+                </div>
+                <div class="tool-icon-box">📄</div>
+              </div>
+              <div class="file-list" id="fileList"></div>
+              <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+                <div class="big">↑</div>
+                <p>Upload PDF, TXT</p>
+              </div>
+              <input type="file" id="fileInput" multiple accept=".pdf,.txt" style="display:none" onchange="handleFileAdd(event)">
+            </div>
+
+            <!-- Exam -->
+            <div class="tool-card">
+              <div class="tool-card-head">
+                <div>
+                  <div class="tool-name">Exam</div>
+                  <div class="tool-desc" id="examCountLabel">0 exams</div>
+                </div>
+                <div class="tool-icon-box">📋</div>
+              </div>
+              <div class="exam-list" id="examList"><div class="empty-state">Chưa có exam</div></div>
+              <div class="config-row">
+                <label>Số câu:</label>
+                <select id="questionCount">
+                  <option value="5">5 câu</option>
+                  <option value="10" selected>10 câu</option>
+                  <option value="20">20 câu</option>
+                </select>
+              </div>
+              <button class="generate-btn" onclick="createExam()">Tạo Exam →</button>
+            </div>
+
+            <!-- Flashcard -->
+            <div class="tool-card">
+              <div class="tool-card-head">
+                <div>
+                  <div class="tool-name">Flashcard</div>
+                  <div class="tool-desc" id="flashcardCountLabel">0 decks</div>
+                </div>
+                <div class="tool-icon-box">📇</div>
+              </div>
+              <div class="flashcard-list" id="flashcardList"><div class="empty-state">Chưa có deck</div></div>
+              <button class="generate-btn subtle" onclick="createFlashcard()">Tạo Deck →</button>
+            </div>
+
+            <!-- Battle -->
+            <div class="tool-card battle-card" id="battleCard">
+              <div class="tool-card-head">
+                <div>
+                  <div class="tool-name">Battle</div>
+                  <div class="tool-desc" id="battleExamLabel">Chọn exam để battle</div>
+                </div>
+                <div class="tool-icon-box">⚔</div>
+              </div>
+              <div class="exam-select-list" id="examSelectList"><div class="empty-state">Tạo exam trước</div></div>
+              <button class="battle-btn-full" id="battleBtn" onclick="startBattle()" disabled>⚔ Battle</button>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BATTLE SCREEN -->
+<div class="battle-screen" id="battleScreen">
+  <div class="battle-root" id="battleRoot">
+
+    <!-- Opening -->
+    <div class="battle-root b-opening" id="bOpening" style="flex-direction:column;align-items:center;justify-content:center;gap:32px;">
+      <h2 class="b-opening-title">Entering Battle...</h2>
+      <div style="width:100%;max-width:640px;border-radius:16px;overflow:hidden;box-shadow:0 0 50px rgba(239,68,68,0.3);">
+        <div style="width:100%;height:300px;background:linear-gradient(135deg,#7f1d1d,#450a0a);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:100px;">⚔</div>
+      </div>
+    </div>
+
+    <!-- Difficulty Select -->
+    <div class="battle-root b-diff" id="bDiff" style="display:none;flex-direction:column;align-items:center;justify-content:center;gap:32px;">
+      <h1 class="b-diff-title">Select Difficulty</h1>
+      <div class="b-diff-btns">
+        <button class="b-diff-btn easy" onclick="startQuizGame('easy')">easy</button>
+        <button class="b-diff-btn medium" onclick="startQuizGame('medium')">medium</button>
+        <button class="b-diff-btn hard" onclick="startQuizGame('hard')">hard</button>
+      </div>
+      <button class="b-back-btn" onclick="showLearning()">← Back to Workspace</button>
+    </div>
+
+    <!-- Game -->
+    <div id="bGame" style="display:none;flex-direction:column;flex:1;max-width:720px;width:100%;margin:0 auto;gap:16px;">
+
+      <button class="b-flee-btn" onclick="showLearning()">← Flee Battle</button>
+
+      <!-- Boss -->
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div class="b-boss-wrap" id="bossBlock">
+          <div class="b-boss-inner">
+            <div class="b-boss-placeholder">👹</div>
+          </div>
+          <div class="b-boss-gradient"></div>
+          <div class="b-boss-label">
+            <span class="b-boss-icon">☠</span>
+            <span class="b-boss-name" id="bossName">The Cloud Architect</span>
+          </div>
+        </div>
+        <div class="b-hp-row">
+          <span class="b-hp-label">Boss HP</span>
+          <div class="b-hp-track"><div class="b-hp-fill" id="bossHpFill" style="width:100%"></div></div>
+          <span class="b-hp-val" id="bossHpVal">100/100</span>
+        </div>
+      </div>
+
+      <!-- Question -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span class="b-q-num" id="qNum">Question 1/10</span>
+          <span class="b-q-score">Score: <span id="qScore">0</span></span>
+        </div>
+        <div class="b-q-box" id="qBox">
+          <span id="qText">VPC dùng để làm gì?</span>
+        </div>
+        <div class="b-q-opts" id="qOpts">
+          <button class="b-q-opt" onclick="handleAnswer(0)"><span class="opt-letter">A.</span><span>Virtual Private Cloud</span></button>
+          <button class="b-q-opt" onclick="handleAnswer(1)"><span class="opt-letter">B.</span><span>Virtual Public Cloud</span></button>
+          <button class="b-q-opt" onclick="handleAnswer(2)"><span class="opt-letter">C.</span><span>VPN Cloud</span></button>
+          <button class="b-q-opt" onclick="handleAnswer(3)"><span class="opt-letter">D.</span><span>Video Processing</span></button>
+        </div>
+      </div>
+
+      <!-- Player -->
+      <div style="position:relative;">
+        <div class="b-player-row">
+          <div class="b-player-info">
+            <div class="b-player-label-row">
+              <span class="b-player-name">Player 1</span>
+              <span class="b-player-hp-val" id="playerHpVal">100/100 HP</span>
+            </div>
+            <div class="b-player-track"><div class="b-player-fill" id="playerFill" style="width:100%"></div></div>
+          </div>
+          <div class="b-player-av" id="playerAv">🎮</div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px;gap:8px;">
+          <span class="b-score-val" id="scoreVal">0</span>
+        </div>
+      </div>
+
+      <!-- Footer: Pips + Timer -->
+      <div class="b-footer">
+        <div class="b-pips" id="pips">
+          <div class="b-pip current">1</div>
+          <div class="b-pip">2</div>
+          <div class="b-pip">3</div>
+          <div class="b-pip">4</div>
+          <div class="b-pip">5</div>
+          <div class="b-pip">6</div>
+          <div class="b-pip">7</div>
+          <div class="b-pip">8</div>
+          <div class="b-pip">9</div>
+          <div class="b-pip">10</div>
+        </div>
+        <div class="b-timer-row">
+          <span class="b-timer-label">TIME REMAINING</span>
+          <div class="b-timer-track"><div class="b-timer-fill" id="timerFill" style="width:100%"></div></div>
+          <span class="b-timer-val" id="timerVal">15s</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Over -->
+    <div class="battle-root b-gameover" id="bGameover" style="display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;flex:1;">
+      <div class="b-go-img-inner" id="goImg">
+        <span id="goEmoji">🏆</span>
+      </div>
+      <h2 class="b-go-title win" id="goTitle">VICTORY</h2>
+      <p class="b-go-score">Final Score: <span id="goScore">0</span></p>
+      <button class="b-replay-btn" onclick="resetBattle()">Play Again</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ─── DATA ───────────────────────────────────────────────
+const QUESTIONS = [
+  { text: 'AWS EC2 là viết tắt của từ gì?', options: ['Elastic Compute Cloud', 'Elastic Container Cloud', 'Elastic Core Cloud', 'Elastic Cloud Compute'], answer: 0 },
+  { text: 'Dịch vụ nào của AWS tối ưu cho NoSQL?', options: ['RDS', 'DynamoDB', 'Redshift', 'Aurora'], answer: 1 },
+  { text: 'Để lưu trữ object số lượng lớn, dùng service nào?', options: ['EBS', 'EFS', 'S3', 'Glacier'], answer: 2 },
+  { text: 'Serverless compute nổi tiếng nhất của AWS?', options: ['EC2', 'Fargate', 'Lambda', 'Beanstalk'], answer: 2 },
+  { text: 'Dịch vụ AI tạo sinh của AWS là gì?', options: ['SageMaker', 'Bedrock', 'Rekognition', 'Lex'], answer: 1 },
+  { text: 'VPC dùng để làm gì?', options: ['Virtual Private Cloud', 'Virtual Public Cloud', 'VPN Cloud', 'Video Processing'], answer: 0 },
+  { text: 'CDN của AWS tên là?', options: ['Global Accelerator', 'CloudFront', 'Route53', 'API Gateway'], answer: 1 },
+  { text: 'Công cụ giám sát resource AWS?', options: ['CloudTrail', 'Config', 'CloudWatch', 'Inspector'], answer: 2 },
+  { text: 'Bảo mật mạng mức subnet dùng?', options: ['Security Group', 'Network ACL', 'WAF', 'Shield'], answer: 1 },
+  { text: 'Kho vector cho RAG trên AWS Bedrock phụ thuộc?', options: ['OpenSearch', 'Kendra', 'Elasticsearch', 'Athena'], answer: 0 },
+];
+const BOSS_NAMES = ['The Cloud Architect', 'Database Overlord', 'Sage of Systems', 'Network Ninja', 'IAM Enforcer', 'Cost Optimizer'];
+
+// ─── STATE ───────────────────────────────────────────────
+let projects = [
+  { id:1, name:'AWS Fundamentals', files:[
+    {name:'aws-lecture.pdf',size:'2.4 MB',type:'pdf',active:false},
+    {name:'ec2-guide.txt',size:'90 KB',type:'txt',active:false},
+  ], exams:[], flashcards:[], chats:[
+    {id:1,name:'Hỏi về EC2',time:'2h trước',preview:'EC2 là gì?'},
+    {id:2,name:'S3 storage',time:'1 ngày',preview:'S3 khác EBS chỗ nào?'},
+  ], activeExam:null, activeFlashcard:null },
+  { id:2, name:'Machine Learning', files:[
+    {name:'ml-basics.pdf',size:'1.8 MB',type:'pdf',active:false},
+  ], exams:[], flashcards:[], chats:[
+    {id:3,name:'Gradient Descent',time:'3 ngày',preview:'Gradient descent hoạt động thế nào?'},
+  ], activeExam:null, activeFlashcard:null },
+];
+let activeProjectId = 1;
+let activeChatId = null;
+
+// Battle state
+let bossHp=100, playerHp=100, score=0, streak=0, currentIdx=0, timeLeft=15, maxTime=15;
+let timerInterval=null;
+let isTransitioning=false;
+
+// ─── PROJECT ──────────────────────────────────────────────
+function getProject() { return projects.find(p=>p.id===activeProjectId); }
+
+function renderProjectToggle() {
+  const p=getProject();
+  document.getElementById('currentProjectName').textContent=p?p.name:'—';
+}
+
+function renderProjectMenu() {
+  const list=document.getElementById('projectMenuList');
+  list.innerHTML=projects.map(p=>`
+    <div class="pm-item ${p.id===activeProjectId?'active':''}" onclick="selectProject(${p.id})">
+      <div class="pm-dot"></div>
+      <div class="pm-name">${p.name}</div>
+      <div class="pm-count">${p.chats.length}</div>
+    </div>
+  `).join('');
+}
+
+function toggleProjectDropdown() {
+  const menu=document.getElementById('projectMenu');
+  const arrow=document.getElementById('projectArrow');
+  const isOpen=menu.classList.contains('show');
+  menu.classList.toggle('show');
+  arrow.style.transform=isOpen?'':'rotate(180deg)';
+  if(!isOpen) renderProjectMenu();
+}
+
+document.addEventListener('click',e=>{
+  const t=document.querySelector('.project-toggle');
+  const m=document.getElementById('projectMenu');
+  if(!t.contains(e.target)&&!m.contains(e.target)){
+    m.classList.remove('show');
+    document.getElementById('projectArrow').style.transform='';
+  }
+});
+
+function selectProject(id) {
+  activeProjectId=id; activeChatId=null;
+  renderProjectToggle(); renderChats(); renderAll();
+  document.getElementById('projectMenu').classList.remove('show');
+  document.getElementById('projectArrow').style.transform='';
+}
+
+function addProject() {
+  const n=prompt('Tên project mới:');
+  if(!n)return;
+  projects.push({id:Date.now(),name:n,files:[],exams:[],flashcards:[],chats:[],activeExam:null,activeFlashcard:null});
+  activeProjectId=projects[projects.length-1].id; activeChatId=null;
+  renderProjectToggle(); renderProjectMenu(); renderChats(); renderAll();
+}
+
+// ─── CHAT ────────────────────────────────────────────────
+function renderChats() {
+  const p=getProject();
+  const list=document.getElementById('chatList');
+  if(!p||p.chats.length===0){ list.innerHTML='<div class="empty-state" style="padding:16px 12px;">Chưa có chat</div>'; return; }
+  list.innerHTML=p.chats.map(c=>`
+    <div class="chat-item ${c.id===activeChatId?'active':''}" onclick="selectChat(${c.id})">
+      <div class="chat-icon">💬</div>
+      <div class="chat-meta">
+        <div class="chat-name">${c.name}</div>
+        <div class="chat-time">${c.time}</div>
+        <div class="chat-preview">${c.preview}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function selectChat(id) {
+  activeChatId=id;
+  const p=getProject();
+  const chat=p?.chats.find(c=>c.id===id);
+  if(chat){
+    document.getElementById('chatHeaderName').textContent=chat.name;
+    document.getElementById('chatHeaderTime').textContent=chat.time;
+    document.getElementById('topbarChatName').textContent=chat.name;
+  }
+  renderChats();
+}
+
+function addChat() {
+  const p=getProject();
+  if(!p)return;
+  const n=prompt('Tên chat mới:');
+  if(!n)return;
+  p.chats.unshift({id:Date.now(),name:n,time:'vừa xong',preview:'...'});
+  activeChatId=p.chats[0].id;
+  document.getElementById('chatHeaderName').textContent=n;
+  document.getElementById('chatHeaderTime').textContent='vừa xong';
+  document.getElementById('topbarChatName').textContent=n;
+  renderChats();
+}
+
+function sendChat() {
+  const input=document.getElementById('chatInput');
+  const t=input.value.trim();
+  if(!t)return;
+  input.value='';
+  const msgs=document.getElementById('chatMessages');
+  const p=getProject();
+  const chatName=activeChatId?(p?.chats.find(c=>c.id===activeChatId)?.name||'Chat'):'New Chat';
+  msgs.innerHTML+=`<div class="msg user"><div class="msg-label"></div><div class="bubble">${t}</div></div><div class="msg bot"><div class="msg-label"></div><div class="bubble">Đang xử lý...</div></div>`;
+  msgs.scrollTop=msgs.scrollHeight;
+  setTimeout(()=>{
+    const lastBubbles=msgs.querySelectorAll('.msg.bot');
+    const lastBot=lastBubbles[lastBubbles.length-1];
+    if(lastBot){
+      const answers={
+        'ec2':'EC2 (Elastic Compute Cloud) là dịch vụ máy chủ ảo của AWS cho phép bạn thuê máy chủ theo nhu cầu.','s3':'S3 (Simple Storage Service) là dịch vụ lưu trữ object của AWS, dung lượng không giới hạn và độ bền 99.999999999%.','lambda':'AWS Lambda là dịch vụ serverless, bạn chỉ cần upload code và AWS sẽ tự động scale.','vpc':'VPC (Virtual Private Cloud) cho phép bạn tạo mạng ảo riêng trong AWS infrastructure.','default':'Câu hỏi hay! Mình sẽ phân tích chi tiết về chủ đề này dựa trên tài liệu của bạn.'
+      };
+      const key=Object.keys(answers).find(k=>t.toLowerCase().includes(k));
+      lastBot.querySelector('.bubble').textContent=key?answers[key]:answers.default;
+    }
+    msgs.scrollTop=msgs.scrollHeight;
+  },800);
+}
+
+// ─── FILES ────────────────────────────────────────────────
+function renderFiles() {
+  const p=getProject();
+  const list=document.getElementById('fileList');
+  const label=document.getElementById('fileCountLabel');
+  if(!p||p.files.length===0){
+    list.innerHTML='';
+    label.textContent='0 files';
+    return;
+  }
+  label.textContent=p.files.length+' file'+(p.files.length>1?'s':'');
+  list.innerHTML=p.files.map((f,i)=>`
+    <div class="file-item ${f.active?'active':''}" onclick="toggleFileActive(${i})">
+      <div class="item-icon">${f.type==='pdf'?'📕':'📄'}</div>
+      <div class="item-meta">
+        <div class="item-name">${f.name}</div>
+        <div class="item-meta-row"><span>${f.size}</span></div>
+      </div>
+      <div class="item-check">✓</div>
+      <div class="item-remove" onclick="event.stopPropagation();removeFile(${i})">×</div>
+    </div>
+  `).join('');
+}
+
+function toggleFileActive(idx) {
+  const p=getProject();
+  if(!p)return;
+  p.files[idx].active=!p.files[idx].active;
+  renderFiles();
+}
+
+function removeFile(idx) {
+  const p=getProject();
+  if(!p)return;
+  p.files.splice(idx,1);
+  renderFiles();
+}
+
+function handleFileAdd(e) {
+  const p=getProject();
+  if(!p)return;
+  Array.from(e.target.files).forEach(f=>{
+    const ext=f.name.split('.').pop().toLowerCase();
+    p.files.push({name:f.name,size:(f.size/1024/1024).toFixed(1)+' MB',type:ext==='pdf'?'pdf':'txt',active:false});
+  });
+  renderFiles();
+  e.target.value='';
+}
+
+// ─── EXAMS ───────────────────────────────────────────────
+function renderExams() {
+  const p=getProject();
+  const list=document.getElementById('examList');
+  const label=document.getElementById('examCountLabel');
+  if(!p||p.exams.length===0){
+    list.innerHTML='<div class="empty-state">Chưa có exam</div>';
+    label.textContent='0 exams';
+    return;
+  }
+  label.textContent=p.exams.length+' exam'+(p.exams.length>1?'s':'');
+  list.innerHTML=p.exams.map((e,i)=>`
+    <div class="exam-item ${p.activeExam===i?'active':''}" onclick="selectExam(${i})">
+      <div class="item-icon">📋</div>
+      <div class="item-meta">
+        <div class="item-name">${e.name}</div>
+        <div class="item-meta-row"><span>${e.count} câu</span><span>${e.time}</span></div>
+      </div>
+      <div class="item-check">✓</div>
+    </div>
+  `).join('');
+}
+
+function selectExam(idx) {
+  const p=getProject();
+  if(!p)return;
+  p.activeExam=p.activeExam===idx?null:idx;
+  renderExams();
+  renderExamSelect();
+}
+
+function createExam() {
+  const p=getProject();
+  if(!p)return;
+  const count=parseInt(document.getElementById('questionCount').value);
+  const n=`Exam ${p.exams.length+1} — ${count} câu`;
+  const times=['vừa xong','5 phút','1 giờ'];
+  p.exams.push({name:n,count:count,time:times[Math.floor(Math.random()*times.length)]});
+  p.activeExam=p.exams.length-1;
+  renderExams();
+  renderExamSelect();
+}
+
+function renderExamSelect() {
+  const p=getProject();
+  const list=document.getElementById('examSelectList');
+  const btn=document.getElementById('battleBtn');
+  const label=document.getElementById('battleExamLabel');
+  if(!p||p.exams.length===0){
+    list.innerHTML='<div class="empty-state">Tạo exam trước</div>';
+    btn.disabled=true;
+    label.textContent='Chưa có exam';
+    return;
+  }
+  list.innerHTML=p.exams.map((e,i)=>`
+    <div class="exam-item ${p.activeExam===i?'active':''}" onclick="selectExam(${i})">
+      <div class="item-icon">📋</div>
+      <div class="item-meta">
+        <div class="item-name">${e.name}</div>
+        <div class="item-meta-row"><span>${e.count} câu</span></div>
+      </div>
+      <div class="item-check">✓</div>
+    </div>
+  `).join('');
+  btn.disabled=p.activeExam===null;
+  label.textContent=p.activeExam!==null?'Sẵn sàng battle':'Chọn exam để battle';
+  if(p.activeExam!==null){
+    document.getElementById('battleCard').classList.add('ready');
+  } else {
+    document.getElementById('battleCard').classList.remove('ready');
+  }
+}
+
+// ─── FLASHCARDS ────────────────────────────────────────────
+function renderFlashcards() {
+  const p=getProject();
+  const list=document.getElementById('flashcardList');
+  const label=document.getElementById('flashcardCountLabel');
+  if(!p||p.flashcards.length===0){
+    list.innerHTML='<div class="empty-state">Chưa có deck</div>';
+    label.textContent='0 decks';
+    return;
+  }
+  label.textContent=p.flashcards.length+' deck'+(p.flashcards.length>1?'s':'');
+  list.innerHTML=p.flashcards.map((f,i)=>`
+    <div class="flashcard-item">
+      <div class="item-icon">📇</div>
+      <div class="item-meta">
+        <div class="item-name">${f.name}</div>
+        <div class="item-meta-row"><span>${f.cards} cards</span><span>${f.time}</span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function createFlashcard() {
+  const p=getProject();
+  if(!p)return;
+  p.flashcards.push({name:`Deck ${p.flashcards.length+1}`,cards:10+Math.floor(Math.random()*20),time:'vừa xong'});
+  renderFlashcards();
+}
+
+// ─── BATTLE ───────────────────────────────────────────────
+function startBattle() {
+  document.getElementById('learningScreen').classList.add('hidden');
+  document.getElementById('battleScreen').classList.add('active');
+  document.getElementById('bOpening').style.display='flex';
+  document.getElementById('bDiff').style.display='none';
+  document.getElementById('bGame').style.display='none';
+  document.getElementById('bGameover').style.display='none';
+  document.getElementById('battleRoot').className='battle-root';
+
+  // Random boss name
+  document.getElementById('bossName').textContent=BOSS_NAMES[Math.floor(Math.random()*BOSS_NAMES.length)];
+
+  // Auto-advance to difficulty after 2.5s
+  setTimeout(()=>{
+    document.getElementById('bOpening').style.display='none';
+    document.getElementById('bDiff').style.display='flex';
+  },2500);
+}
+
+function startQuizGame(diff) {
+  document.getElementById('bDiff').style.display='none';
+  document.getElementById('bGame').style.display='flex';
+
+  // Reset state
+  bossHp=100; playerHp=100; score=0; streak=0; currentIdx=0;
+  maxTime=diff==='easy'?20:diff==='medium'?15:10;
+  timeLeft=maxTime;
+  isTransitioning=false;
+
+  renderBattleUI();
+  startTimer();
+}
+
+function startTimer() {
+  if(timerInterval)clearInterval(timerInterval);
+  timerInterval=setInterval(()=>{
+    if(isTransitioning)return;
+    timeLeft--;
+    updateTimerUI();
+    if(timeLeft<=0){
+      clearInterval(timerInterval);
+      handleAnswer(-1); // timeout = wrong
+    }
+  },1000);
+}
+
+function updateTimerUI() {
+  const val=document.getElementById('timerVal');
+  const fill=document.getElementById('timerFill');
+  val.textContent=timeLeft+'s';
+  fill.style.width=(timeLeft/maxTime*100)+'%';
+  if(timeLeft<=5){
+    val.classList.add('low');
+    fill.classList.add('low');
+  } else {
+    val.classList.remove('low');
+    fill.classList.remove('low');
+  }
+}
+
+function renderBattleUI() {
+  const q=QUESTIONS[currentIdx];
+  document.getElementById('qNum').textContent=`Question ${currentIdx+1}/10`;
+  document.getElementById('qScore').textContent=score;
+  document.getElementById('qText').textContent=q.text;
+  document.getElementById('bossHpFill').style.width=bossHp+'%';
+  document.getElementById('bossHpVal').textContent=bossHp+'/100';
+  document.getElementById('playerHpVal').textContent=playerHp+'/100 HP';
+  document.getElementById('playerFill').style.width=playerHp+'%';
+  document.getElementById('scoreVal').textContent=score;
+  updateTimerUI();
+
+  // Options
+  const opts=document.getElementById('qOpts');
+  opts.innerHTML=q.options.map((o,i)=>`
+    <button class="b-q-opt" onclick="handleAnswer(${i})">
+      <span class="opt-letter">${String.fromCharCode(65+i)}.</span><span>${o}</span>
+    </button>
+  `).join('');
+
+  // Pips
+  const pips=document.getElementById('pips');
+  pips.innerHTML=Array.from({length:10},(_,i)=>{
+    let cls='b-pip';
+    if(i<currentIdx)cls+=QUESTIONS[i].answer===0?' done-correct':' done-wrong';
+    else if(i===currentIdx)cls+=' current';
+    return `<div class="${cls}">${i+1}</div>`;
+  }).join('');
+}
+
+function handleAnswer(selectedIdx) {
+  if(isTransitioning)return;
+  isTransitioning=true;
+  clearInterval(timerInterval);
+
+  const q=QUESTIONS[currentIdx];
+  const isCorrect=selectedIdx===q.answer;
+
+  // Flash question box
+  const qBox=document.getElementById('qBox');
+  qBox.classList.add(isCorrect?'flash-correct':'flash-wrong');
+
+  // Highlight options
+  const opts=document.querySelectorAll('.b-q-opt');
+  opts.forEach((opt,i)=>{
+    opt.disabled=true;
+    if(i===q.answer)opt.classList.add('correct');
+    else if(i===selectedIdx)opt.classList.add('wrong');
+    else opt.classList.add('dim');
+  });
+
+  // Boss shake + damage if correct
+  if(isCorrect){
+    const boss=document.getElementById('bossBlock');
+    boss.classList.add('b-boss-shake');
+    boss.innerHTML+=`<div class="b-boss-flash"></div><div class="b-dmg-float">-10 HP</div><div class="b-crit-label">⚔ CRITICAL HIT!</div>`;
+    bossHp=Math.max(0,bossHp-10);
+    score+=10;
+    streak++;
+    document.getElementById('bossHpFill').style.width=bossHp+'%';
+    document.getElementById('bossHpVal').textContent=bossHp+'/100';
+  } else {
+    // Player shake
+    const av=document.getElementById('playerAv');
+    av.classList.add('hit');
+    const playerWrap=av.closest('div[style*="position:relative"]');
+    if(playerWrap)playerWrap.innerHTML+=`<div class="b-self-dmg">-20 HP</div>`+playerWrap.innerHTML;
+    playerHp=Math.max(0,playerHp-20);
+    streak=0;
+    document.getElementById('playerHpVal').textContent=playerHp+'/100 HP';
+    document.getElementById('playerFill').style.width=playerHp+'%';
+  }
+
+  // Update score display
+  document.getElementById('qScore').textContent=score;
+  document.getElementById('scoreVal').textContent=score;
+
+  // Background flash
+  const root=document.getElementById('battleRoot');
+  root.classList.add(isCorrect?'bg-correct':'bg-wrong');
+
+  setTimeout(()=>{
+    qBox.classList.remove('flash-correct','flash-wrong');
+    root.classList.remove('bg-correct','bg-wrong');
+    const boss=document.getElementById('bossBlock');
+    boss.classList.remove('b-boss-shake');
+    boss.querySelector('.b-boss-flash')?.remove();
+    boss.querySelector('.b-dmg-float')?.remove();
+    boss.querySelector('.b-crit-label')?.remove();
+    const av=document.getElementById('playerAv');
+    av.classList.remove('hit');
+    isTransitioning=false;
+
+    // Check game over
+    if(bossHp<=0||playerHp<=0||currentIdx===9){
+      showGameOver();
+    } else {
+      currentIdx++;
+      timeLeft=maxTime;
+      startTimer();
+      renderBattleUI();
+    }
+  },900);
+}
+
+function showGameOver() {
+  document.getElementById('bGame').style.display='none';
+  document.getElementById('bGameover').style.display='flex';
+  const won=playerHp>0;
+  const root=document.getElementById('battleRoot');
+  root.classList.add(won?'bg-win':'bg-lose');
+  document.getElementById('goImg').className='b-go-img-inner '+(won?'win':'lose');
+  document.getElementById('goEmoji').textContent=won?'🏆':'💀';
+  document.getElementById('goTitle').textContent=won?'VICTORY':'DEFEAT';
+  document.getElementById('goTitle').className='b-go-title '+(won?'win':'lose');
+  document.getElementById('goScore').textContent=score;
+}
+
+function resetBattle() {
+  document.getElementById('bGameover').style.display='none';
+  document.getElementById('bOpening').style.display='flex';
+  const root=document.getElementById('battleRoot');
+  root.className='battle-root';
+  document.getElementById('bossName').textContent=BOSS_NAMES[Math.floor(Math.random()*BOSS_NAMES.length)];
+  setTimeout(()=>{
+    document.getElementById('bOpening').style.display='none';
+    document.getElementById('bDiff').style.display='flex';
+  },2500);
+}
+
+function showLearning() {
+  clearInterval(timerInterval);
+  document.getElementById('battleScreen').classList.remove('active');
+  document.getElementById('learningScreen').classList.remove('hidden');
+}
+
+// ─── RENDER ALL ────────────────────────────────────────────
+function renderAll() {
+  renderFiles();
+  renderExams();
+  renderExamSelect();
+  renderFlashcards();
+}
+
+renderProjectToggle();
+renderProjectMenu();
+renderChats();
+renderAll();
+</script>
+</body>
+</html>

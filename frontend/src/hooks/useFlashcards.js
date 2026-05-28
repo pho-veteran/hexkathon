@@ -1,42 +1,47 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '../api/client'
 
-export function useFlashcards() {
+export function useFlashcards(projectId) {
   const [flashcardSets, setFlashcardSets] = useState([])
   const [loading, setLoading] = useState(false)
-  const initialized = useRef(false)
 
   const loadFlashcards = useCallback(async () => {
+    if (!projectId) {
+      setFlashcardSets([])
+      return []
+    }
     setLoading(true)
     try {
-      const data = await apiFetch('/flashcards')
-      setFlashcardSets(data.flashcardSets || [])
+      const data = await apiFetch(`/flashcards?projectId=${encodeURIComponent(projectId)}`)
+      const next = data.flashcardSets || []
+      setFlashcardSets(next)
+      return next
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [projectId])
 
   useEffect(() => {
-    if (!initialized.current) {
-      initialized.current = true
-      loadFlashcards().catch(() => {})
-    }
+    loadFlashcards().catch(() => {})
   }, [loadFlashcards])
 
   const generateFlashcards = useCallback(async (docIds, cardCount = 10) => {
+    if (!projectId) {
+      throw new Error('Select a project first.')
+    }
     setLoading(true)
     try {
       const result = await apiFetch('/flashcards/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ docIds, cardCount }),
+        body: JSON.stringify({ projectId, docIds, cardCount }),
       })
       await loadFlashcards()
       return result
     } finally {
       setLoading(false)
     }
-  }, [loadFlashcards])
+  }, [projectId, loadFlashcards])
 
   return { flashcardSets, loading, generateFlashcards, reloadFlashcards: loadFlashcards }
 }
