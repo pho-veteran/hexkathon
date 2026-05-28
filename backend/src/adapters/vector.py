@@ -12,6 +12,36 @@ class BedrockKBRetriever:
         self.kb_id = kb_id
         self.client = boto3.client("bedrock-agent-runtime", region_name=region)
 
+    def retrieve(
+        self,
+        query: str,
+        user_id: str,
+        project_id: str | None = None,
+        doc_ids: list[str] | None = None,
+        top_k: int = 5,
+    ) -> list[dict[str, Any]]:
+        kwargs: dict[str, Any] = {
+            "knowledgeBaseId": self.kb_id,
+            "retrievalQuery": {"text": query},
+            "retrievalConfiguration": {
+                "vectorSearchConfiguration": {
+                    "numberOfResults": top_k,
+                }
+            },
+        }
+
+        response = self.client.retrieve(**kwargs)
+        results = response.get("retrievalResults", [])
+        return [
+            {
+                "doc_id": result.get("metadata", {}).get("doc_id", ""),
+                "text": result.get("content", {}).get("text", ""),
+                "score": result.get("score", 0.0),
+                "metadata": result.get("metadata", {}),
+            }
+            for result in results
+        ]
+
 
 class BedrockKBIngestionClient:
     def __init__(self, kb_id: str, data_source_id: str, region: str):

@@ -79,9 +79,15 @@ resource "aws_iam_role_policy" "lambda_exec" {
         Effect = "Allow"
         Action = [
           "bedrock:Retrieve",
-          "bedrock:RetrieveAndGenerate"
+          "bedrock:RetrieveAndGenerate",
+          "bedrock:ListIngestionJobs",
+          "bedrock:StartIngestionJob",
+          "bedrock:GetIngestionJob"
         ]
-        Resource = [aws_bedrockagent_knowledge_base.main.arn]
+        Resource = [
+          aws_bedrockagent_knowledge_base.main.arn,
+          "${aws_bedrockagent_knowledge_base.main.arn}/*",
+        ]
       },
     ]
   })

@@ -359,7 +359,7 @@ def create_app() -> FastAPI:
             prompt = ai_client.build_grounded_prompt(req.question, context, citations)
             answer = ai_client.invoke(prompt)
         except Exception:
-            answer = "I couldn't retrieve grounded context from your documents right now. Try uploading a document or ask again in a moment."
+            answer = "The AI service is temporarily unavailable. Please try again in a few minutes."
 
         now = utc_now()
         chat_messages_store.put_message(

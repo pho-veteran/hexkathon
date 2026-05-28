@@ -19,7 +19,7 @@ variable "environment" {
 variable "bedrock_model_id" {
   description = "Bedrock model ID for AI generation"
   type        = string
-  default     = "anthropic.claude-3-5-haiku-20241022-v1:0"
+  default     = "anthropic.claude-3-haiku-20240307-v1:0"
 }
 
 variable "frontend_urls" {
@@ -27,6 +27,7 @@ variable "frontend_urls" {
   type        = list(string)
   default = [
     "http://localhost:5173",
+    "https://d2oh27yv1chd93.cloudfront.net",
   ]
 }
 

@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --color-accent: oklch(78% 0.14 190);
+  --color-accent-hover: oklch(72% 0.16 190);
+  --color-accent-muted: oklch(45% 0.08 190);
+  --color-danger: oklch(65% 0.2 25);
+  --color-success: oklch(72% 0.15 155);
+}
+
+:root {
+  --surface-bg: oklch(97% 0.005 260);
+  --surface-1: oklch(99% 0.003 260);
+  --surface-2: oklch(94% 0.008 260);
+  --surface-border: oklch(90% 0.01 260);
+  --text-primary: oklch(20% 0.005 260);
+  --text-secondary: oklch(45% 0.01 260);
+  --text-tertiary: oklch(62% 0.01 260);
+  --gradient-from: oklch(97% 0.005 260);
+  --gradient-to: oklch(95% 0.008 40);
+  --accent-on-surface: oklch(40% 0.12 190);
+  --shadow-color: oklch(70% 0.01 260 / 0.08);
+}
+
+.dark {
+  --surface-bg: oklch(13% 0.008 260);
+  --surface-1: oklch(17% 0.01 260);
+  --surface-2: oklch(21% 0.012 260);
+  --surface-border: oklch(26% 0.012 260);
+  --text-primary: oklch(92% 0.005 260);
+  --text-secondary: oklch(68% 0.01 260);
+  --text-tertiary: oklch(50% 0.01 260);
+  --gradient-from: oklch(13% 0.008 260);
+  --gradient-to: oklch(15% 0.012 40);
+  --accent-on-surface: oklch(78% 0.14 190);
+  --shadow-color: oklch(0% 0 0 / 0.3);
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: radial-gradient(ellipse at 15% 5%, var(--gradient-to), var(--gradient-from) 70%);
+  color: var(--text-primary);
+  min-height: 100dvh;
+}
+
+/* Resize handle */
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.resize-handle:hover,
+.resize-handle:active {
+  background: var(--accent-on-surface);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }

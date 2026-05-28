@@ -8,7 +8,7 @@ resource "aws_cognito_user_pool" "main" {
   name = "study-buddy-${var.group_id}-${var.environment}"
 
   admin_create_user_config {
-    allow_admin_create_user_only = true
+    allow_admin_create_user_only = false
   }
 
   account_recovery_setting {
@@ -26,7 +26,7 @@ resource "aws_cognito_user_pool" "main" {
     require_lowercase = true
     require_uppercase = true
     require_numbers   = true
-    require_symbols   = false
+    require_symbols   = true
   }
 
   schema {
@@ -46,7 +46,9 @@ resource "aws_cognito_user_pool_client" "frontend" {
 
   explicit_auth_flows = [
     "ALLOW_USER_SRP_AUTH",
+    "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
+    "ALLOW_ADMIN_USER_PASSWORD_AUTH",
   ]
 
   allowed_oauth_flows                  = ["code"]

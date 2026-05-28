@@ -255,7 +255,7 @@ def delete_project_resources(user_id: str, project_id: str, projects_store, chat
 
 
 def apply_answer(session: dict, quiz: dict, question_id: str, selected_choice_id: str) -> dict:
-    idx = session["currentQuestionIndex"]
+    idx = int(session["currentQuestionIndex"])
     if session.get("status") != "active" or idx >= len(quiz["questions"]):
         return session
 
