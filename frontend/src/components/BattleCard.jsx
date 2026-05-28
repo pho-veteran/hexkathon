@@ -11,10 +11,11 @@ function resolveChoiceText(choice) {
 }
 
 export default function BattleCard({ quizId, onEndBattle }) {
-  const { battleState, loading, startBattle, answerQuestion } = useBattle()
+  const { battleState, loading, startBattle, answerQuestion, resumeSession } = useBattle()
   const [opening, setOpening] = useState(true)
   const [error, setError] = useState(null)
   const [lastResult, setLastResult] = useState(null)
+  const storageKey = quizId ? `battleSession:${quizId}` : null
 
   useEffect(() => {
     const timer = setTimeout(() => setOpening(false), 2500)
@@ -27,10 +28,30 @@ export default function BattleCard({ quizId, onEndBattle }) {
       return
     }
 
-    startBattle(quizId).catch((err) => {
-      setError(err.message)
-    })
-  }, [quizId, startBattle])
+    const restoreOrStart = async () => {
+      try {
+        const sessionId = storageKey ? sessionStorage.getItem(storageKey) : null
+        if (sessionId) {
+          const resumed = await resumeSession(sessionId)
+          if (resumed?.session?.quizId === quizId) {
+            return
+          }
+        }
+
+        const started = await startBattle(quizId)
+        if (storageKey && started?.session?.sessionId) {
+          sessionStorage.setItem(storageKey, started.session.sessionId)
+        }
+      } catch (err) {
+        if (storageKey) {
+          sessionStorage.removeItem(storageKey)
+        }
+        setError(err.message)
+      }
+    }
+
+    restoreOrStart()
+  }, [quizId, resumeSession, startBattle, storageKey])
 
   const session = battleState?.session
   const quiz = battleState?.quiz
@@ -43,7 +64,7 @@ export default function BattleCard({ quizId, onEndBattle }) {
 
   const totalQuestions = quiz?.questions?.length || 0
   const isFinished = session?.status !== 'active' || !currentQuestion
-  const victory = session?.bossHp === 0 || session?.userHp > 0
+  const victory = session?.status === 'won' || session?.bossHp === 0
 
   const handleAnswer = async (choiceId) => {
     if (!session || !currentQuestion || loading) {
@@ -53,6 +74,9 @@ export default function BattleCard({ quizId, onEndBattle }) {
     setError(null)
     try {
       const result = await answerQuestion(session.sessionId, currentQuestion.questionId, choiceId)
+      if (storageKey && result.session?.status !== 'active') {
+        sessionStorage.removeItem(storageKey)
+      }
       const answerEntry = result.session?.answerHistory?.at(-1)
       setLastResult(answerEntry)
     } catch (err) {

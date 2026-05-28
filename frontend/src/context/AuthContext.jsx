@@ -7,7 +7,9 @@ const AuthContext = createContext(null)
 function parseJwtPayload(token) {
   try {
     const payload = token.split('.')[1]
-    return JSON.parse(atob(payload))
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), '=')
+    return JSON.parse(atob(padded))
   } catch {
     return null
   }
